@@ -60,13 +60,13 @@ else
 end
 
 [H, user_idx] = get_service_channel_matrix(params, scene, state);
+W = ensure_precoder_compatible(state, H, params.P_max);
 col_k = find(user_idx == k, 1);
 if isempty(col_k)
     error('Signal_model: rx_signal requires k in state.S');
 end
 
 hk = H(:, col_k);
-W = state.W;
 
 desired = (hk' * W(:,col_k)) * s(col_k);
 interference = 0;
@@ -82,13 +82,13 @@ end
 function gamma_k = compute_sinr_single(params, scene, state, k)
 % 单用户SINR：gamma_k = |h_k^H w_k|^2 / (sum_{j!=k}|h_k^H w_j|^2 + sigma2)
 [H, user_idx] = get_service_channel_matrix(params, scene, state);
+W = ensure_precoder_compatible(state, H, params.P_max);
 col_k = find(user_idx == k, 1);
 if isempty(col_k)
     error('Signal_model: k must be in current service set state.S');
 end
 
 hk = H(:, col_k);
-W = state.W;
 
 signal_pow = abs(hk' * W(:,col_k))^2;
 interf_pow = 0;
@@ -104,7 +104,7 @@ end
 function rates = compute_individual_rates(params, scene, state)
 % 当前服务用户集合的速率向量，顺序与 state.S 一致
 [H, user_idx] = get_service_channel_matrix(params, scene, state);
-W = state.W;
+W = ensure_precoder_compatible(state, H, params.P_max);
 Kserv = numel(user_idx);
 
 rates = zeros(Kserv,1);
@@ -131,4 +131,34 @@ extra_ch.use_all = false;
 ch_out = Channel_model('all_users', params, scene, state, extra_ch);
 H = ch_out.H;
 user_idx = ch_out.user_idx(:).';
+end
+
+function W = ensure_precoder_compatible(state, H, Pmax)
+% 保证W与当前服务用户维度兼容；若缺失则给一个简单可读初值
+Nt = size(H,1);
+Kc = size(H,2);
+
+ok = false;
+if isfield(state,'W') && ~isempty(state.W)
+    W0 = state.W;
+    ok = (size(W0,1)==Nt) && (size(W0,2)==Kc);
+end
+
+if ok
+    W = W0;
+    return;
+end
+
+W = zeros(Nt, Kc);
+for k = 1:Kc
+    hk = H(:,k);
+    nrm = norm(hk);
+    if nrm > 0
+        W(:,k) = hk / nrm;
+    end
+end
+p = real(trace(W*W'));
+if p > Pmax && p > 0
+    W = W * sqrt(Pmax/p);
+end
 end
