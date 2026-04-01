@@ -123,8 +123,12 @@ function W = solve_mu_bisection(A, B, Pmax)
 % 一维二分搜索mu以满足 tr(WW^H)<=Pmax
 Nt = size(A,1);
 I = eye(Nt);
+eps_reg = 1e-10;
 
-W0 = (A + 0*I) \ B;
+% 数值对称化，避免浮点误差导致病态
+A = (A + A')/2;
+
+W0 = (A + eps_reg*I) \ B;
 p0 = real(trace(W0*W0'));
 if p0 <= Pmax
     W = W0;
@@ -134,17 +138,22 @@ end
 mu_l = 0;
 mu_u = 1;
 while true
-    Wu = (A + mu_u*I) \ B;
+    Wu = (A + (mu_u + eps_reg)*I) \ B;
     pu = real(trace(Wu*Wu'));
     if pu <= Pmax
         break;
     end
     mu_u = 2 * mu_u;
+    if mu_u > 1e12
+        % 极端病态时回退到大正则解，避免死循环和奇异警告
+        W = (A + (mu_u + eps_reg)*I) \ B;
+        return;
+    end
 end
 
 for it = 1:50
     mu_m = 0.5*(mu_l + mu_u);
-    Wm = (A + mu_m*I) \ B;
+    Wm = (A + (mu_m + eps_reg)*I) \ B;
     pm = real(trace(Wm*Wm'));
     if pm > Pmax
         mu_l = mu_m;
@@ -153,5 +162,5 @@ for it = 1:50
     end
 end
 
-W = (A + mu_u*I) \ B;
+W = (A + (mu_u + eps_reg)*I) \ B;
 end
