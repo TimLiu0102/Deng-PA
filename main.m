@@ -87,16 +87,33 @@ if ~isfield(state, 'swap_flag')
 end
 
 %% 第5部分：初始性能与历史量
-R_init = Signal_model('sum_rate', params, scene, state, []);
-R_old = R_init;
+R_old = Signal_model('sum_rate', params, scene, state, []);
 
 history = struct();
-history.R_sum = R_init;
-history.S = {state.S};
-history.swap_flag = false;
+
+% 初始快照
 history.X0 = state.X;
 history.theta0 = state.theta;
 history.phi0 = state.phi;
+history.S0 = state.S;
+
+% 初始 sum rate
+history.R_sum = R_old;
+
+% 每轮四块后的中间 sum rate
+history.R_after_W = [];
+history.R_after_angle = [];
+history.R_after_X = [];
+history.R_after_S = [];
+
+% 每轮变量快照
+history.S_cells = {};
+history.X_cells = {};
+history.theta_cells = {};
+history.phi_cells = {};
+
+% 交换标记历史（保留原有语义：首个元素对应初始化）
+history.swap_flag = false;
 
 %% 第6部分：外层交替优化主循环（固定顺序）
 for t = 1:params.T_max
@@ -105,32 +122,45 @@ for t = 1:params.T_max
 
     % 1) 更新 W
     state.W = AO_W(params, scene, model, state);
+    R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
     % 2) 更新角度
     [state.theta, state.phi] = AO_angle(params, scene, model, state);
+    R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
     state.X = AO_X(params, scene, model, state);
+    R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
     [state.S, state.swap_flag] = AO_S(params, scene, model, state);
+    R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
-    % 5) 计算新的真实 sum rate
-    R_new = Signal_model('sum_rate', params, scene, state, []);
+    % 5) 保存每轮四块更新后的中间 sum rate
+    history.R_after_W(end+1,1) = R_after_W;
+    history.R_after_angle(end+1,1) = R_after_angle;
+    history.R_after_X(end+1,1) = R_after_X;
+    history.R_after_S(end+1,1) = R_after_S;
 
-    % 6) 记录历史量
+    % 6) 该轮最终真实 sum rate
+    R_new = R_after_S;
     history.R_sum(end+1,1) = R_new;
-    history.S{end+1,1} = state.S;
+
+    % 7) 保存每轮变量快照
+    history.S_cells{t,1} = state.S;
+    history.X_cells{t,1} = state.X;
+    history.theta_cells{t,1} = state.theta;
+    history.phi_cells{t,1} = state.phi;
     history.swap_flag(end+1,1) = state.swap_flag;
 
-    % 7) 外层停止判断
+    % 8) 外层停止判断
     % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
     % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
     if abs(R_new - R_old) < params.eps_outer
         break;
     end
 
-    % 8) 更新上一轮目标值
+    % 9) 更新上一轮目标值
     R_old = R_new;
 end
 
