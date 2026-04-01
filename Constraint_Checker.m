@@ -1,53 +1,87 @@
-function varargout = Constraint_Checker(mode, x, params)
-% 仅负责PA位置物理可行域检查与投影
-% chi_n: 0<=y1<=...<=yM<=Dy, 且相邻间隔>=Delta
+function out = Constraint_Checker(mode, params, x_in)
+% Constraint Checker：仅负责单条波导PA位置的可行性检查与投影
 
-switch mode
-    case 'project'
-        varargout{1} = project_to_chi(x(:), params.Dy, params.Delta);
-    case 'is_feasible'
-        varargout{1} = is_feasible(x(:), params.Dy, params.Delta);
+switch lower(mode)
+    case 'check_position'
+        out = check_position(params, x_in);
+
+    case 'project_position'
+        out = project_position(params, x_in);
+
     otherwise
-        error('Constraint_Checker: unknown mode');
+        error('Constraint_Checker: unsupported mode');
 end
 
 end
 
-function xproj = project_to_chi(x, Dy, Delta)
+%% ======================== 内部子函数 ========================
+function is_feasible = check_position(params, x_in)
+% PA位置物理可行性检查：
+% 0 <= y1 <= ... <= yM <= Dy, 且 y_m - y_{m-1} >= Delta
+x = x_in(:);
 M = numel(x);
-z = x - (0:M-1)'*Delta;
-ub = Dy - (M-1)*Delta;
-z = min(max(z,0),ub);
-z = isotonic_nondec(z);
-xproj = z + (0:M-1)'*Delta;
-xproj = min(max(xproj,0),Dy);
+Dy = params.Dy;
+Delta = params.Delta;
+
+if M == 0
+    is_feasible = false;
+    return;
 end
 
-function tf = is_feasible(x, Dy, Delta)
-tf = all(x>=-1e-12) && all(x<=Dy+1e-12) && all(diff(x)>=Delta-1e-12);
+cond1 = all(x >= 0) && all(x <= Dy);
+cond2 = all(diff(x) >= 0);
+if M == 1
+    cond3 = true;
+else
+    cond3 = all(diff(x) >= Delta);
 end
 
-function z = isotonic_nondec(y)
-% 简洁PAV实现
-z = y; n = numel(y); w = ones(n,1); i = 1;
-while i < n
-    if z(i) <= z(i+1)
-        i = i + 1;
-    else
-        newv = (w(i)*z(i)+w(i+1)*z(i+1))/(w(i)+w(i+1));
-        z(i) = newv; z(i+1) = newv;
-        w(i) = w(i)+w(i+1); w(i+1)=w(i);
-        j = i;
-        while j>1 && z(j-1)>z(j)
-            newv = (w(j-1)*z(j-1)+w(j)*z(j))/(w(j-1)+w(j));
-            z(j-1)=newv; z(j)=newv;
-            w(j-1)=w(j-1)+w(j); w(j)=w(j-1);
-            j=j-1;
-        end
-        i = i + 1;
-    end
+is_feasible = cond1 && cond2 && cond3;
 end
-for i = 2:n
-    z(i) = max(z(i), z(i-1));
+
+function x_proj = project_position(params, x_in)
+% 将原始位置向量投影到可行集 chi_n
+% chi_n: 0<=y1<=...<=yM<=Dy, 且相邻间距>=Delta
+x = x_in(:);
+M = numel(x);
+Dy = params.Dy;
+Delta = params.Delta;
+
+if (M-1)*Delta > Dy
+    error('Constraint_Checker: infeasible params, (M-1)*Delta > Dy');
 end
+
+if M == 1
+    x_proj = min(max(x,0),Dy);
+    return;
+end
+
+% 1) 基本区间裁剪
+x = min(max(x, 0), Dy);
+
+% 2) 前向修正：保证 y_m >= y_{m-1} + Delta
+for m = 2:M
+    x(m) = max(x(m), x(m-1) + Delta);
+end
+
+% 3) 末端裁剪并反向修正：保证 y_M <= Dy 且保持最小间距
+x(M) = min(x(M), Dy);
+for m = M-1:-1:1
+    x(m) = min(x(m), x(m+1) - Delta);
+end
+
+% 4) 再做一次区间与前向修正，确保最终满足chi_n
+x = min(max(x, 0), Dy);
+for m = 2:M
+    x(m) = max(x(m), x(m-1) + Delta);
+end
+
+% 若末端超界，则整体平移回界内（保持间距结构）
+if x(M) > Dy
+    shift = x(M) - Dy;
+    x = x - shift;
+    x = min(max(x,0),Dy);
+end
+
+x_proj = x;
 end
