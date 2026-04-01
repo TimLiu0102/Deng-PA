@@ -8,29 +8,28 @@ clc; clear; close all;
 params = struct();
 
 % 1) 系统规模参数
-params.N = 3;
+params.N = 4;
 params.M = 4;
-params.K = 24;
-params.NRF = 12;
-params.K_serv = 6;
-params.K_max = 24;
+params.K = 32;
+params.NRF = 4;
+params.K_serv = 4;
+params.K_max = 4;
 
 % 2) 几何参数
-params.Dx = 8;
-params.Dy = 20;
-params.d = 3;
-params.Delta = 0.8;
+params.Dx = 10;
+params.Dy = 10;
+params.d = 5;
+params.Delta = 0.5;
 
 % 3) 信道参数
 params.lambda = 0.01;
 params.n_eff = 1.6;
-params.alphaW = 0.06;
-params.alphaL = 0.98;
-params.a = 0.8;
-params.b = 0.6;
-params.v = 1.0;
+params.alphaW = 0.01;
+params.alphaL = 0.96;
+params.a = 10;
+params.b = 6;
+params.v = 1.1;
 params.n_refr = 1.5;
-params.B_norm = 1.0;
 params.eta = 1.0;
 params.P_max = 1.0;
 params.sigma2 = 1e-3;

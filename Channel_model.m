@@ -79,6 +79,7 @@ k0 = 2*pi/params.lambda;
 
 w1 = params.v * params.a * params.lambda;
 w2 = params.v * params.b * params.lambda;
+B = sqrt(2/(pi*w1*w2)); % 由 ∫∫|f(x,y,z)|^2 dx dz = 1 得到
 W1 = params.lambda * y_eff / (pi * params.n_refr * w1);
 W2 = params.lambda * y_eff / (pi * params.n_refr * w2);
 R1 = y_eff;
@@ -86,7 +87,7 @@ R2 = y_eff;
 Theta1 = atan(params.lambda * y_eff / (pi * params.n_refr * w1));
 Theta2 = atan(params.lambda * y_eff / (pi * params.n_refr * w2));
 
-ups = sqrt((w1*w2)/(W1*W2)) * params.B_norm * exp( ...
+ups = sqrt((w1*w2)/(W1*W2)) * B * exp( ...
     -(x^2/W1^2 + z^2/W2^2) ...
     -1j * k0 * params.n_refr * (x^2/(2*R1) + z^2/(2*R2) + y_eff) ...
     +1j * (Theta1 + Theta2)/2 );
