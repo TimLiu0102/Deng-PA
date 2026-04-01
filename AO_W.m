@@ -30,6 +30,7 @@ for it = 1:params.I_W
     % 3.4 用真实sum rate做内循环停止判断
     state_eval.W = W;
     R_now = Signal_model('sum_rate', params, scene, state_eval, struct());
+
     if abs(R_now - R_prev) < params.eps_W
         break;
     end
@@ -154,4 +155,5 @@ for it = 1:50
 end
 
 W = (A + mu_u*I) \ B;
+
 end
