@@ -191,7 +191,7 @@ end
 % 每条波导调用Constraint_Checker投影
 for n = 1:N
     xbar_n = X(n,:).';
-    x0_n = Constraint_Checker('project', xbar_n, params);
+    x0_n = Constraint_Checker('project_position', params, xbar_n);
     X(n,:) = x0_n(:).';
 end
 end
