@@ -1,5 +1,5 @@
 function result = main()
-% 论文复现主流程：参数 -> 建模 -> 初始化 -> 外层AO -> 输出
+% main：论文复现主流程（参数设置 -> 初始化 -> 外层AO -> 输出）
 
 %% 第1部分：清空环境
 clc; clear; close all;
@@ -12,8 +12,8 @@ params.N = 4;
 params.M = 4;
 params.K = 32;
 params.NRF = 4;
-params.K_serv = 4;
 params.K_max = 4;
+params.K_serv = min(params.NRF, params.K_max);
 
 % 2) 几何参数
 params.Dx = 10;
@@ -37,7 +37,7 @@ params.sigma2 = 1e-3;
 % 4) 初始化参数
 params.lambda_mov = 0.05;
 
-% 5) WMMSE参数
+% 5) WMMSE 参数
 params.I_W = 40;
 params.eps_W = 1e-4;
 
@@ -67,18 +67,18 @@ params.max_swaps = 1;
 params.T_max = 30;
 params.eps_outer = 1e-4;
 
-% 可复现实验随机种子
+% 10) 随机种子
 params.seed = 7;
 rng(params.seed);
 
-%% 第3部分：场景与问题定义
-scene = Channel_model('build_scene', params);
+%% 第3部分：场景生成与问题定义
+scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
 state = Initialization(params, scene, model);
 
-% 明确W不在Initialization中初始化，首次由AO_W更新
+% 初始化不负责W，这里仅保证字段存在
 if ~isfield(state, 'W')
     state.W = [];
 end
@@ -87,59 +87,59 @@ if ~isfield(state, 'swap_flag')
 end
 
 %% 第5部分：初始性能与历史量
-R_old = Signal_model('sum_rate', params, scene, model, state);
+R_init = Signal_model('sum_rate', params, scene, state, []);
+R_old = R_init;
 
 history = struct();
-history.R_sum = R_old;
+history.R_sum = R_init;
 history.S = {state.S};
-history.X = {state.X};
-history.theta = {state.theta};
-history.phi = {state.phi};
-history.swap_flag = state.swap_flag;
+history.swap_flag = false;
+history.X0 = state.X;
+history.theta0 = state.theta;
+history.phi0 = state.phi;
 
-%% 第6部分：外层交替优化循环（固定顺序）
+%% 第6部分：外层交替优化主循环（固定顺序）
 for t = 1:params.T_max
-    state.iter = t;
+    % 当前外层迭代编号，供 AO_S 周期触发判断
+    state.t = t;
 
-    % (1) 更新W
+    % 1) 更新 W
     state.W = AO_W(params, scene, model, state);
 
-    % (2) 更新角度
+    % 2) 更新角度
     [state.theta, state.phi] = AO_angle(params, scene, model, state);
 
-    % (3) 更新位置
+    % 3) 更新位置
     state.X = AO_X(params, scene, model, state);
 
-    % (4) 更新用户集
+    % 4) 更新用户集合
     [state.S, state.swap_flag] = AO_S(params, scene, model, state);
 
-    % (5) 计算真实sum rate
-    R_new = Signal_model('sum_rate', params, scene, model, state);
+    % 5) 计算新的真实 sum rate
+    R_new = Signal_model('sum_rate', params, scene, state, []);
 
-    % (6) 保存历史量
+    % 6) 记录历史量
     history.R_sum(end+1,1) = R_new;
     history.S{end+1,1} = state.S;
-    history.X{end+1,1} = state.X;
-    history.theta{end+1,1} = state.theta;
-    history.phi{end+1,1} = state.phi;
     history.swap_flag(end+1,1) = state.swap_flag;
 
-    % (7) 论文外层停止准则：sum rate收敛
-    % 由于各块更新均按真实sum rate非下降接受，目标值序列单调非减
+    % 7) 外层停止判断
+    % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
+    % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
     if abs(R_new - R_old) < params.eps_outer
         break;
     end
 
-    % (8) 更新上一轮目标值
+    % 8) 更新上一轮目标值
     R_old = R_new;
 end
 
-%% 第7部分：收尾输出
+%% 第8部分：整理输出并调用结果显示模块
 result = struct();
 result.state = state;
 result.history = history;
-result.model = model;
 result.scene = scene;
+result.model = model;
 
 Print_and_Plot(params, scene, model, result);
 
