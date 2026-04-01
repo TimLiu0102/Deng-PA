@@ -15,9 +15,10 @@ model.objective = 'max_{S,X,W,theta,phi} R_sum(S,X,W,theta,phi)';
 %% 优化变量
 model.variables = {'S','X','W','theta','phi'};
 
-%% 关键参数（当前代码以 params.K_serv 为准）
-% 论文中也常写 K_serv = min(NRF, K_max)，这里直接采用 params.K_serv
-model.K_serv = params.K_serv;
+%% 关键参数
+% 服务用户数按论文定义取 K_serv = min(NRF, K_max)
+% 这里在代码中实现为 min(params.NRF, params.K_max)
+model.K_serv = min(params.NRF, params.K_max);
 model.N = params.N;
 model.M = params.M;
 model.K = params.K;
