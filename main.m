@@ -40,7 +40,8 @@ params.lambda_mov = 0.05;
 
 % 5) WMMSE 参数
 params.I_W = 40;
-params.eps_W = 1e-4;
+% WMMSE内循环停止阈值（用于AO_W子问题内部，不是外层接受门槛）
+params.eps_W = 1e-12;
 
 % 6) 角度更新参数
 params.I_theta = 6;
@@ -87,14 +88,15 @@ state = Initialization(params, scene, model);
 
 % 初始化不负责W，这里仅保证字段存在
 if ~isfield(state, 'W')
+    % Initialization 不负责W；W在外层AO中由AO_W作为第一块先更新
     state.W = [];
 end
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
 end
 
-%% 第5部分：初始性能与历史量
-R_old = Signal_model('sum_rate', params, scene, state, []);
+%% 第5部分：初始历史量（仅几何/集合快照，不在AO_W前计算sum rate）
+R_old = [];
 
 history = struct();
 
@@ -104,8 +106,9 @@ history.theta0 = state.theta;
 history.phi0 = state.phi;
 history.S0 = state.S;
 
-% 初始 sum rate
-history.R_sum = R_old;
+% 每轮完整AO（W->angle->X->S）后的真实 sum rate
+% 有效历史从第一次AO_W之后开始建立
+history.R_sum = [];
 
 % 每轮四块后的中间 sum rate
 history.R_after_W = [];
@@ -161,9 +164,9 @@ for t = 1:params.T_max
     history.swap_flag(end+1,1) = state.swap_flag;
 
     % 8) 外层停止判断
-    % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
-    % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
-    if abs(R_new - R_old) < params.eps_outer
+    % 第一轮先建立第一个完整外层结果；从第二轮起再比较相邻两轮
+    % eps_outer 仅作用于外层终止，不参与任何子块候选解接受
+    if t >= 2 && abs(R_new - R_old) < params.eps_outer
         break;
     end
 

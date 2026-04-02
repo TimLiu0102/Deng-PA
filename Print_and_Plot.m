@@ -28,9 +28,9 @@ fprintf('服务用户数 K_serv=%d\n', model.K_serv);
 
 if isfield(history,'R_sum') && ~isempty(history.R_sum)
     R_hist = history.R_sum(:);
-    fprintf('初始 sum rate: %.6f\n', R_hist(1));
+    fprintf('第1轮完整AO后的 sum rate: %.6f\n', R_hist(1));
     fprintf('最终 sum rate: %.6f\n', R_hist(end));
-    fprintf('外层迭代次数: %d\n', numel(R_hist)-1);
+    fprintf('外层迭代次数: %d\n', numel(R_hist));
 else
     fprintf('sum rate 历史缺失，无法打印收敛信息。\n');
 end
@@ -226,7 +226,7 @@ if isfield(history,'R_after_W') && isfield(history,'R_after_angle') ...
     Rx = history.R_after_X(:);
     Rs = history.R_after_S(:);
 
-    T = min([numel(R_prev)-1, numel(Rw), numel(Ra), numel(Rx), numel(Rs)]);
+    T = min([numel(R_prev), numel(Rw), numel(Ra), numel(Rx), numel(Rs)]);
     if T > 0
         R_prev = R_prev(1:T);
         Rw = Rw(1:T);
@@ -234,7 +234,11 @@ if isfield(history,'R_after_W') && isfield(history,'R_after_angle') ...
         Rx = Rx(1:T);
         Rs = Rs(1:T);
 
-        deltaW = Rw - R_prev;
+        % history.R_sum 记录的是“每轮完整AO后的结果”，
+        % 因此 W 块增益相对“上一轮完整AO结果”定义；第1轮无上一轮基准，记为0
+        R_prev_for_W = [R_prev(1); R_prev(1:end-1)];
+        deltaW = Rw - R_prev_for_W;
+        deltaW(1) = 0;
         deltaAngle = Ra - Rw;
         deltaX = Rx - Ra;
         deltaS = Rs - Rx;

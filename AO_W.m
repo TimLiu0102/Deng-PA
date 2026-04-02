@@ -1,5 +1,7 @@
 function W_new = AO_W(params, scene, model, state)
 % AO_W：固定 (S,X,theta,phi) 后，按WMMSE更新预编码矩阵W
+% 第一轮外层若 state.W 为空，则在本函数内部构造WMMSE启动点
+% 该启动点仅属于AO_W子问题内部，不属于 Initialization 阶段
 
 if nargin < 3
     model = struct(); %#ok<NASGU>
@@ -49,7 +51,8 @@ H = ch_out.H;
 end
 
 function W0 = initialize_precoder_if_needed(params, state, H)
-% 若state.W不可用，则用简单MRT型方向作为初值并缩放到P_max
+% 若state.W可用则继承上一轮W作为当前子问题启动点
+% 若state.W为空（第一轮外层常见），用MRT型方向构造WMMSE启动点
 [~, Kc] = size(H);
 Nt = size(H,1);
 
