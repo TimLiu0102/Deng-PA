@@ -35,20 +35,31 @@ for it = 1:params.I_X
     % 回溯线搜索：X_trial = Projection(X + alpha*d)，以真实sum rate是否提升为准
     [x_trial, R_trial] = line_search_position(n, x_cur, d_vec, X_cur, params, scene, state, R_old);
 
-    % 对应论文中位置块停止条件：提升小于 eps_X 则停止
-    if (R_trial - R_old) < params.eps_X
+    % Delta_R 是真实 sum rate 改变量
+    Delta_R = R_trial - R_old;
+
+    % 非下降接受（candidate acceptance）：只要真实sum rate不下降就接受
+    % 注意：接受准则与停止准则必须分开，不能共用一个阈值
+    if Delta_R < params.eps_accept_X
         break;
     end
 
+    x_old = x_cur;
     g_new = numerical_gradient_position(n, x_trial, X_cur, params, scene, state);
 
-    s_k = x_trial - x_cur;
+    % 仅在候选点被接受后，才更新L-BFGS历史 s_k, y_k
+    s_k = x_trial - x_old;
     y_k = g_new - g_vec;
-
-    [s_hist, y_hist] = push_lbfgs_history(s_hist, y_hist, s_k, y_k, params.lbfgs_mem);
 
     x_cur = x_trial;
     R_old = R_trial;
+
+    [s_hist, y_hist] = push_lbfgs_history(s_hist, y_hist, s_k, y_k, params.lbfgs_mem);
+
+    % 小增益停止（stopping criterion）：已接受更新后若增益很小，则停止
+    if Delta_R < params.eps_stop_X
+        break;
+    end
 end
 
 X_cur = replace_waveguide_position(X_cur, n, x_cur);

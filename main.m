@@ -55,7 +55,8 @@ params.step_fd = 1e-3;
 params.line_search_alpha0 = 0.5;
 params.line_search_beta = 0.5;
 params.line_search_max_iter = 8;
-params.eps_X = 1e-5;
+params.eps_accept_X = 0;
+params.eps_stop_X = 1e-12;
 params.I_X = 6;
 params.lbfgs_mem = 5;
 
