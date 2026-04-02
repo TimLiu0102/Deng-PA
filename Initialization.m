@@ -114,19 +114,9 @@ for ic = 1:Nc
     end
 end
 
-% 目标：选择K_serv条一对一匹配（用户与PA都不重复）
+% 目标：在“每个用户/每个PA至多匹配一次”下，恰好选择 K_serv 条匹配
 maxPairs = min([params.K_serv, Nc, NPA]);
-
-if exist('matchpairs','file') == 2
-    % matchpairs是最小化成本，故取成本 = -U
-    [pairs,~] = matchpairs(-U, -1e12, 'max');
-    if size(pairs,1) > maxPairs
-        pairs = pairs(1:maxPairs,:);
-    end
-else
-    % 简洁后备：贪心一对一最大收益
-    pairs = greedy_match(U, maxPairs);
-end
+pairs = maximum_weight_matching_hungarian(U, maxPairs);
 
 M_bin = zeros(Nc, N, M);
 pair_table = zeros(size(pairs,1), 3); % [ic, n, m]
@@ -146,17 +136,96 @@ matching.pair_table = pair_table;
 matching.U = U;
 end
 
-function pairs = greedy_match(U, maxPairs)
-[nr,nc] = size(U);
-Uwork = U;
-pairs = zeros(0,2);
-for t = 1:maxPairs
-    [best,id] = max(Uwork(:));
-    if ~isfinite(best), break; end
-    [r,c] = ind2sub([nr,nc], id);
-    pairs(end+1,:) = [r,c]; %#ok<AGROW>
-    Uwork(r,:) = -inf;
-    Uwork(:,c) = -inf;
+function pairs = maximum_weight_matching_hungarian(U, maxPairs)
+% 对应论文初始化主关联：maximum weight matching
+% 最大化 sum M_{k,n,m} U_{k,n,m} 等价于最小化 assignment cost
+% 通过引入 Nc-maxPairs 个虚拟PA列（收益=0），把“恰好maxPairs条真实匹配”写成标准指派问题
+[Nc, NPA] = size(U);
+Ndummy = Nc - maxPairs;
+U_ext = [U, zeros(Nc, Ndummy)];
+
+% 收益最大化 -> 代价最小化：cost = c0 - U_ext
+c0 = max(U_ext(:));
+cost = c0 - U_ext;
+
+% 匈牙利算法求解：每个候选用户恰好分配1列，每列至多被1个用户使用
+assign_col = hungarian_rectangular(cost);
+
+real_mask = assign_col <= NPA;
+ic_idx = find(real_mask);
+col_idx = assign_col(real_mask);
+pairs = [ic_idx(:), col_idx(:)];
+end
+
+function assign_col = hungarian_rectangular(cost)
+% 匈牙利算法（最小化版本）：输入 n x m, 要求 n<=m
+% 输出 assign_col(i)=j，表示第i行分配到第j列
+[n, m] = size(cost);
+if n > m
+    error('Initialization: Hungarian requires n<=m');
+end
+
+u = zeros(n+1,1);
+v = zeros(m+1,1);
+p = zeros(m+1,1);
+way = zeros(m+1,1);
+
+for i = 1:n
+    p(1) = i;
+    j0 = 1;
+    minv = inf(m+1,1);
+    used = false(m+1,1);
+
+    while true
+        used(j0) = true;
+        i0 = p(j0);
+        delta = inf;
+        j1 = 1;
+
+        for j = 2:(m+1)
+            if ~used(j)
+                cur = cost(i0, j-1) - u(i0+1) - v(j);
+                if cur < minv(j)
+                    minv(j) = cur;
+                    way(j) = j0;
+                end
+                if minv(j) < delta
+                    delta = minv(j);
+                    j1 = j;
+                end
+            end
+        end
+
+        for j = 1:(m+1)
+            if used(j)
+                u(p(j)+1) = u(p(j)+1) + delta;
+                v(j) = v(j) - delta;
+            else
+                minv(j) = minv(j) - delta;
+            end
+        end
+
+        j0 = j1;
+        if p(j0) == 0
+            break;
+        end
+    end
+
+    while true
+        j1 = way(j0);
+        p(j0) = p(j1);
+        j0 = j1;
+        if j0 == 1
+            break;
+        end
+    end
+end
+
+assign_col = zeros(n,1);
+for j = 2:(m+1)
+    if p(j) ~= 0
+        assign_col(p(j)) = j-1;
+    end
 end
 end
 
@@ -164,12 +233,6 @@ function S = build_initial_service_set(C, matching, K_serv)
 % 对应论文：S^(0) = {k in C: 存在匹配}
 ic_used = unique(matching.pairs_ic_col(:,1));
 S = C(ic_used);
-
-% 正常情况下匹配应给出K_serv个用户；若不足则从C中按顺序补齐
-if numel(S) < K_serv
-    rest = setdiff(C, S, 'stable');
-    S = [S, rest(1:min(K_serv-numel(S), numel(rest)))];
-end
 S = S(1:min(K_serv, numel(S)));
 S = S(:).';
 end
