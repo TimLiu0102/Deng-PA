@@ -56,6 +56,8 @@ params.line_search_alpha0 = 0.5;
 params.line_search_beta = 0.5;
 params.line_search_max_iter = 8;
 params.eps_X = 1e-5;
+params.I_X = 6;
+params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
 params.T_S = 2;
