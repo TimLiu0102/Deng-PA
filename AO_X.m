@@ -17,32 +17,52 @@ end
 
 %% ======================== 内部子函数 ========================
 function X_cur = update_single_waveguide(n, X_cur, params, scene, state)
-% 第n条波导的位置子问题更新
-x_n = X_cur(n,:).';
+% 第n条波导的位置子问题更新（数值梯度 + L-BFGS方向 + 线搜索 + 投影）
+x_cur = X_cur(n,:).';
+R_old = local_objective_fn(n, x_cur, X_cur, params, scene, state);
 
-% 局部目标值 f_n(x_n)
-f_old = local_objective_fn(n, x_n, X_cur, params, scene, state);
+% L-BFGS有限记忆历史：s_k = x_{k+1}-x_k, y_k = g_{k+1}-g_k
+s_hist = [];
+y_hist = [];
 
-% 数值微分近似梯度
-g = numerical_gradient_position(n, x_n, X_cur, params, scene, state);
+for it = 1:params.I_X
+    % 这里对应论文中通过数值微分近似位置变量梯度
+    g_vec = numerical_gradient_position(n, x_cur, X_cur, params, scene, state);
 
-% L-BFGS-B style方向（简洁实现：可用负梯度作为退化情形）
-d = lbfgsb_direction(g);
-if norm(d) < 1e-12
-    return;
+    % two-loop recursion 计算 quasi-Newton 方向 d = -H_k g_k
+    d_vec = compute_lbfgs_direction(g_vec, s_hist, y_hist);
+
+    % 回溯线搜索：X_trial = Projection(X + alpha*d)，以真实sum rate是否提升为准
+    [x_trial, R_trial] = line_search_position(n, x_cur, d_vec, X_cur, params, scene, state, R_old);
+
+    % Delta_R 是真实 sum rate 改变量
+    Delta_R = R_trial - R_old;
+
+    % 非下降接受（candidate acceptance）：只要真实sum rate不下降就接受
+    % 注意：接受准则与停止准则必须分开，不能共用一个阈值
+    if Delta_R < params.eps_accept_X
+        break;
+    end
+
+    x_old = x_cur;
+    g_new = numerical_gradient_position(n, x_trial, X_cur, params, scene, state);
+
+    % 仅在候选点被接受后，才更新L-BFGS历史 s_k, y_k
+    s_k = x_trial - x_old;
+    y_k = g_new - g_vec;
+
+    x_cur = x_trial;
+    R_old = R_trial;
+
+    [s_hist, y_hist] = push_lbfgs_history(s_hist, y_hist, s_k, y_k, params.lbfgs_mem);
+
+    % 小增益停止（stopping criterion）：已接受更新后若增益很小，则停止
+    if Delta_R < params.eps_stop_X
+        break;
+    end
 end
 
-% 一次局部线搜索得到 raw candidate
-xbar_n = line_search_position(n, x_n, d, X_cur, params, scene, state);
-
-% 投影到可行域 chi_n（必须调用 Constraint_Checker）
-xhat_n = Constraint_Checker('project_position', params, xbar_n);
-
-% 非下降接受准则（真实sum rate）
-f_new = local_objective_fn(n, xhat_n, X_cur, params, scene, state);
-if f_new >= f_old + params.eps_X
-    X_cur = replace_waveguide_position(X_cur, n, xhat_n);
-end
+X_cur = replace_waveguide_position(X_cur, n, x_cur);
 end
 
 function f = local_objective_fn(n, x_n, X_ref, params, scene, state)
@@ -75,29 +95,66 @@ for i = 1:M
 end
 end
 
-function d = lbfgsb_direction(g)
-% L-BFGS-B style inverse Hessian近似方向（最简可读形式）
-% 历史信息不足时退化为负梯度方向
-Hinv = eye(numel(g));
-d = -Hinv * g;
+function d = compute_lbfgs_direction(g, s_hist, y_hist)
+% L-BFGS two-loop recursion：用有限记忆历史近似逆Hessian作用
+% s_k = x_{k+1}-x_k, y_k = g_{k+1}-g_k
+% 算法含义：不显式构造Hessian，而是由历史曲率信息近似 d = -H_k g_k
+k = size(s_hist,2);
+q = g;
+
+alpha = zeros(k,1);
+rho = zeros(k,1);
+for i = k:-1:1
+    rho(i) = 1 / (y_hist(:,i)' * s_hist(:,i));
+    alpha(i) = rho(i) * (s_hist(:,i)' * q);
+    q = q - alpha(i) * y_hist(:,i);
 end
 
-function xbar = line_search_position(n, x_n, d, X_ref, params, scene, state)
-% 局部线搜索：alpha从alpha0开始，按beta回缩
+if k >= 1
+    s_last = s_hist(:,k);
+    y_last = y_hist(:,k);
+    gamma = (s_last' * y_last) / (y_last' * y_last);
+else
+    gamma = 1;
+end
+r = gamma * q;
+
+for i = 1:k
+    beta = rho(i) * (y_hist(:,i)' * r);
+    r = r + s_hist(:,i) * (alpha(i) - beta);
+end
+
+d = -r;
+end
+
+function [xbar, fbar] = line_search_position(n, x_n, d, X_ref, params, scene, state, f0)
+% 局部线搜索：alpha从alpha0开始，按beta回缩；每个试探点先投影再验收
 alpha = params.line_search_alpha0;
-f0 = local_objective_fn(n, x_n, X_ref, params, scene, state);
 
 xbar = x_n;
+fbar = f0;
 for t = 1:params.line_search_max_iter
     x_try = x_n + alpha * d;
     x_try = Constraint_Checker('project_position', params, x_try);
 
     f_try = local_objective_fn(n, x_try, X_ref, params, scene, state);
-    if f_try >= f0
+    if f_try > f0
         xbar = x_try;
+        fbar = f_try;
         return;
     end
     alpha = alpha * params.line_search_beta;
+end
+end
+
+function [s_hist, y_hist] = push_lbfgs_history(s_hist, y_hist, s_k, y_k, mem_len)
+% 维护最近 mem_len 组 (s_k, y_k)
+s_hist = [s_hist, s_k];
+y_hist = [y_hist, y_k];
+
+if size(s_hist,2) > mem_len
+    s_hist = s_hist(:, end-mem_len+1:end);
+    y_hist = y_hist(:, end-mem_len+1:end);
 end
 end
 
