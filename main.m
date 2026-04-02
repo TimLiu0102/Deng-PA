@@ -31,7 +31,7 @@ params.b = 6;
 params.v = 1.1;
 params.n_refr = 1.5;
 % 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
-params.eta = lambda^2 / (4*pi);
+params.eta = params.lambda^2 / (4*pi);
 params.P_max = 1.0;
 params.sigma2 = 1e-3;
 
