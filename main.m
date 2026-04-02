@@ -30,7 +30,8 @@ params.a = 10;
 params.b = 6;
 params.v = 1.1;
 params.n_refr = 1.5;
-params.eta = 1.0;
+% 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
+params.eta = params.lambda^2 / (4*pi);
 params.P_max = 1.0;
 params.sigma2 = 1e-3;
 
@@ -55,6 +56,8 @@ params.line_search_alpha0 = 0.5;
 params.line_search_beta = 0.5;
 params.line_search_max_iter = 8;
 params.eps_X = 1e-5;
+params.I_X = 6;
+params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
 params.T_S = 2;
