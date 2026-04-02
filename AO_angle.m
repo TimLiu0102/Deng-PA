@@ -71,13 +71,23 @@ for r = 1:params.I_theta
         end
     end
 
-    % 非下降接受准则
-    if R_best_round >= R_center + params.eps_theta
+    % Delta_R 是真实 sum rate 的改变量
+    Delta_R = R_best_round - R_center;
+
+    % 非下降接受准则（candidate acceptance）
+    % 只要不降低真实sum rate，就接受角度候选
+    if Delta_R >= params.eps_accept_angle
         theta_c = theta_hat;
         phi_c = phi_hat;
         theta_cur_all(n,m) = theta_c;
         phi_cur_all(n,m) = phi_c;
         no_improve_count = 0;
+
+        % 小增益停止准则（stopping criterion）
+        % 接受后若增益已很小，则停止该PA角度块细化
+        if Delta_R < params.eps_stop_angle
+            break;
+        end
     else
         no_improve_count = no_improve_count + 1;
         dtheta = params.beta_theta * dtheta;

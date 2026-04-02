@@ -1,5 +1,6 @@
 function out = Signal_model(mode, params, scene, state, extra)
 % Signal Model and Performance Metric：仅负责信号与速率计算
+% 严格按当前给定的 precoder W 计算；W 的生成/更新由 AO_W 负责
 
 if nargin < 5 || isempty(extra), extra = struct(); end
 
@@ -46,7 +47,7 @@ x_rad = W * s; % NM x 1
 end
 
 function y_k = rx_signal_model(params, scene, state, extra)
-% 接收信号：y_k = desired + interference + noise
+% 接收信号：y_k = h_k^H w_k s_k + sum_{j!=k} h_k^H w_j s_j + n_k
 k = extra.k;
 if isfield(extra,'s')
     s = extra.s(:);
@@ -60,7 +61,7 @@ else
 end
 
 [H, user_idx] = get_service_channel_matrix(params, scene, state);
-W = ensure_precoder_compatible(state, H, params.P_max);
+W = get_valid_precoder(state, H);
 col_k = find(user_idx == k, 1);
 if isempty(col_k)
     error('Signal_model: rx_signal requires k in state.S');
@@ -82,7 +83,7 @@ end
 function gamma_k = compute_sinr_single(params, scene, state, k)
 % 单用户SINR：gamma_k = |h_k^H w_k|^2 / (sum_{j!=k}|h_k^H w_j|^2 + sigma2)
 [H, user_idx] = get_service_channel_matrix(params, scene, state);
-W = ensure_precoder_compatible(state, H, params.P_max);
+W = get_valid_precoder(state, H);
 col_k = find(user_idx == k, 1);
 if isempty(col_k)
     error('Signal_model: k must be in current service set state.S');
@@ -104,7 +105,7 @@ end
 function rates = compute_individual_rates(params, scene, state)
 % 当前服务用户集合的速率向量，顺序与 state.S 一致
 [H, user_idx] = get_service_channel_matrix(params, scene, state);
-W = ensure_precoder_compatible(state, H, params.P_max);
+W = get_valid_precoder(state, H);
 Kserv = numel(user_idx);
 
 rates = zeros(Kserv,1);
@@ -133,32 +134,17 @@ H = ch_out.H;
 user_idx = ch_out.user_idx(:).';
 end
 
-function W = ensure_precoder_compatible(state, H, Pmax)
-% 保证W与当前服务用户维度兼容；若缺失则给一个简单可读初值
+function W = get_valid_precoder(state, H)
+% 仅做轻量合法性检查：Signal_model 不再在内部隐式初始化W
 Nt = size(H,1);
 Kc = size(H,2);
 
-ok = false;
-if isfield(state,'W') && ~isempty(state.W)
-    W0 = state.W;
-    ok = (size(W0,1)==Nt) && (size(W0,2)==Kc);
+if ~isfield(state,'W') || isempty(state.W)
+    error('Signal_model: state.W is empty. W must be updated by AO_W before evaluation.');
 end
 
-if ok
-    W = W0;
-    return;
-end
-
-W = zeros(Nt, Kc);
-for k = 1:Kc
-    hk = H(:,k);
-    nrm = norm(hk);
-    if nrm > 0
-        W(:,k) = hk / nrm;
-    end
-end
-p = real(trace(W*W'));
-if p > Pmax && p > 0
-    W = W * sqrt(Pmax/p);
+W = state.W;
+if size(W,1) ~= Nt || size(W,2) ~= Kc
+    error('Signal_model: size(state.W) is incompatible with current service channel matrix H.');
 end
 end

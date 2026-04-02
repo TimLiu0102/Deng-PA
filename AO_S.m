@@ -71,8 +71,9 @@ for iter_swap = 1:max_swaps
         end
     end
 
-    % 7) best-improvement 接受准则
-    if best_delta >= params.eps_S
+    % best_delta 是最佳交换对应的真实 sum rate 改变量
+    % 非下降接受：只要交换不降低真实sum rate，就允许更新用户集合
+    if best_delta >= params.eps_accept_S
         S_new = apply_single_swap(S_new, best_pos, best_user_in, best_user_out);
         swap_flag = true;
 
@@ -81,7 +82,13 @@ for iter_swap = 1:max_swaps
             S_new = state_now.S;
             break;
         end
+
+        % 小增益停止：已接受交换后，若增益很小则无需继续single-swap
+        if best_delta < params.eps_stop_S
+            break;
+        end
     else
+        % 接受失败：当前最佳交换都不能满足非下降接受，停止本轮AO_S
         break;
     end
 end

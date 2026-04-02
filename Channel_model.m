@@ -121,7 +121,8 @@ for m = 1:M
     local_xyz = global_to_local(q_k, p_nm, theta_n(m), phi_n(m));
     ups = radiation_pattern(local_xyz(1), local_xyz(2), local_xyz(3), params);
 
-    h_tilde_kn(m) = sqrt(params.eta * (params.alphaL^d_k_nm)) * ups;
+    % 严格对应论文自由空间信道公式：sqrt(eta) * alphaL^d * Upsilon
+    h_tilde_kn(m) = sqrt(params.eta) * (params.alphaL^d_k_nm) * ups;
 end
 end
 

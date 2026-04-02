@@ -30,7 +30,8 @@ params.a = 10;
 params.b = 6;
 params.v = 1.1;
 params.n_refr = 1.5;
-params.eta = 1.0;
+% 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
+params.eta = params.lambda^2 / (4*pi);
 params.P_max = 1.0;
 params.sigma2 = 1e-3;
 
@@ -39,7 +40,8 @@ params.lambda_mov = 0.05;
 
 % 5) WMMSE 参数
 params.I_W = 40;
-params.eps_W = 1e-4;
+% WMMSE内循环停止阈值（用于AO_W子问题内部，不是外层接受门槛）
+params.eps_W = 1e-12;
 
 % 6) 角度更新参数
 params.I_theta = 6;
@@ -47,25 +49,31 @@ params.Delta_theta0 = 0.08;
 params.Delta_phi0 = 0.08;
 params.beta_theta = 0.6;
 params.beta_phi = 0.6;
-params.eps_theta = 1e-5;
+params.eps_accept_angle = 0;
+params.eps_stop_angle = 1e-12;
 
 % 7) 位置更新参数
 params.step_fd = 1e-3;
 params.line_search_alpha0 = 0.5;
 params.line_search_beta = 0.5;
 params.line_search_max_iter = 8;
-params.eps_X = 1e-5;
+params.eps_accept_X = 0;
+params.eps_stop_X = 1e-12;
+params.I_X = 6;
+params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
 params.T_S = 2;
 params.L_in = 2;
 params.L_out = 4;
-params.eps_S = 1e-5;
+params.eps_accept_S = 0;
+params.eps_stop_S = 1e-12;
 params.max_swaps = 1;
 
 % 9) 外层停止参数
 params.T_max = 30;
-params.eps_outer = 1e-4;
+% eps_outer 仅用于外层AO停止，不参与任一子块候选解接受判断
+params.eps_outer = 1e-12;
 
 % 10) 随机种子
 params.seed = 7;
@@ -80,14 +88,15 @@ state = Initialization(params, scene, model);
 
 % 初始化不负责W，这里仅保证字段存在
 if ~isfield(state, 'W')
+    % Initialization 不负责W；W在外层AO中由AO_W作为第一块先更新
     state.W = [];
 end
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
 end
 
-%% 第5部分：初始性能与历史量
-R_old = Signal_model('sum_rate', params, scene, state, []);
+%% 第5部分：初始历史量（仅几何/集合快照，不在AO_W前计算sum rate）
+R_old = [];
 
 history = struct();
 
@@ -97,8 +106,9 @@ history.theta0 = state.theta;
 history.phi0 = state.phi;
 history.S0 = state.S;
 
-% 初始 sum rate
-history.R_sum = R_old;
+% 每轮完整AO（W->angle->X->S）后的真实 sum rate
+% 有效历史从第一次AO_W之后开始建立
+history.R_sum = [];
 
 % 每轮四块后的中间 sum rate
 history.R_after_W = [];
@@ -154,9 +164,9 @@ for t = 1:params.T_max
     history.swap_flag(end+1,1) = state.swap_flag;
 
     % 8) 外层停止判断
-    % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
-    % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
-    if abs(R_new - R_old) < params.eps_outer
+    % 第一轮先建立第一个完整外层结果；从第二轮起再比较相邻两轮
+    % eps_outer 仅作用于外层终止，不参与任何子块候选解接受
+    if t >= 2 && abs(R_new - R_old) < params.eps_outer
         break;
     end
 

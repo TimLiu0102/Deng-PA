@@ -40,8 +40,8 @@ is_feasible = cond1 && cond2 && cond3;
 end
 
 function x_proj = project_position(params, x_in)
-% 将原始位置向量投影到可行集 chi_n
-% chi_n: 0<=y1<=...<=yM<=Dy, 且相邻间距>=Delta
+% 将名义位置向量投影到论文可行域 chi_n（即 Pi_{chi_n}(x_in)）
+% chi_n: 0<=y1<=...<=yM<=Dy, 且 y_m-y_{m-1}>=Delta
 x = x_in(:);
 M = numel(x);
 Dy = params.Dy;
@@ -51,37 +51,54 @@ if (M-1)*Delta > Dy
     error('Constraint_Checker: infeasible params, (M-1)*Delta > Dy');
 end
 
-if M == 1
-    x_proj = min(max(x,0),Dy);
-    return;
+% 变量替换：z_m = y_m - (m-1)Delta
+% 则最小间距约束 y_m-y_{m-1}>=Delta 等价为 z_1<=z_2<=...<=z_M
+% 同时由 0<=y_1, y_M<=Dy 可得 z 位于 [0, Dy-(M-1)Delta]
+offset = ((0:M-1)' * Delta);
+z_in = x - offset;
+
+z_lb = 0;
+z_ub = Dy - (M-1)*Delta;
+
+% 对 z_in 做“单调非降 + 区间边界”的欧氏投影（bounded isotonic regression, PAVA）
+z_proj = bounded_isotonic_projection(z_in, z_lb, z_ub);
+
+% 映射回原变量 y_m = z_m + (m-1)Delta
+x_proj = z_proj + offset;
 end
 
-% 1) 基本区间裁剪
-x = min(max(x, 0), Dy);
+function z_proj = bounded_isotonic_projection(z_in, z_lb, z_ub)
+% PAVA：求解 min ||z-z_in||^2 s.t. z_1<=...<=z_M, z_lb<=z<=z_ub
+% 每个块维护均值，若出现单调性违背则合并相邻块
+v = z_in(:);
+M = numel(v);
 
-% 2) 前向修正：保证 y_m >= y_{m-1} + Delta
-for m = 2:M
-    x(m) = max(x(m), x(m-1) + Delta);
+blk_start = zeros(M,1);
+blk_end = zeros(M,1);
+blk_sum = zeros(M,1);
+blk_cnt = zeros(M,1);
+blk_val = zeros(M,1);
+B = 0;
+
+for i = 1:M
+    B = B + 1;
+    blk_start(B) = i;
+    blk_end(B) = i;
+    blk_sum(B) = v(i);
+    blk_cnt(B) = 1;
+    blk_val(B) = min(max(blk_sum(B)/blk_cnt(B), z_lb), z_ub);
+
+    while B >= 2 && blk_val(B-1) > blk_val(B)
+        blk_end(B-1) = blk_end(B);
+        blk_sum(B-1) = blk_sum(B-1) + blk_sum(B);
+        blk_cnt(B-1) = blk_cnt(B-1) + blk_cnt(B);
+        blk_val(B-1) = min(max(blk_sum(B-1)/blk_cnt(B-1), z_lb), z_ub);
+        B = B - 1;
+    end
 end
 
-% 3) 末端裁剪并反向修正：保证 y_M <= Dy 且保持最小间距
-x(M) = min(x(M), Dy);
-for m = M-1:-1:1
-    x(m) = min(x(m), x(m+1) - Delta);
+z_proj = zeros(M,1);
+for b = 1:B
+    z_proj(blk_start(b):blk_end(b)) = blk_val(b);
 end
-
-% 4) 再做一次区间与前向修正，确保最终满足chi_n
-x = min(max(x, 0), Dy);
-for m = 2:M
-    x(m) = max(x(m), x(m-1) + Delta);
-end
-
-% 若末端超界，则整体平移回界内（保持间距结构）
-if x(M) > Dy
-    shift = x(M) - Dy;
-    x = x - shift;
-    x = min(max(x,0),Dy);
-end
-
-x_proj = x;
 end
