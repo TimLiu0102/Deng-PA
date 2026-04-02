@@ -33,7 +33,7 @@ params.n_refr = 1.5;
 % 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
 params.eta = params.lambda^2 / (4*pi);
 params.P_max = 1.0;
-params.sigma2 = 1e-3;
+params.sigma2 = 5e-9;
 
 % 4) 初始化参数
 params.lambda_mov = 0.05;
@@ -68,7 +68,7 @@ params.eps_S = 1e-5;
 params.max_swaps = 1;
 
 % 9) 外层停止参数
-params.T_max = 30;
+params.T_max = 50;
 params.eps_outer = 1e-4;
 
 % 10) 随机种子
