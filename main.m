@@ -48,7 +48,8 @@ params.Delta_theta0 = 0.08;
 params.Delta_phi0 = 0.08;
 params.beta_theta = 0.6;
 params.beta_phi = 0.6;
-params.eps_theta = 1e-5;
+params.eps_accept_angle = 0;
+params.eps_stop_angle = 1e-12;
 
 % 7) 位置更新参数
 params.step_fd = 1e-3;
@@ -64,12 +65,14 @@ params.lbfgs_mem = 5;
 params.T_S = 2;
 params.L_in = 2;
 params.L_out = 4;
-params.eps_S = 1e-5;
+params.eps_accept_S = 0;
+params.eps_stop_S = 1e-12;
 params.max_swaps = 1;
 
 % 9) 外层停止参数
-params.T_max = 50;
-params.eps_outer = 1e-4;
+params.T_max = 30;
+% eps_outer 仅用于外层AO停止，不参与任一子块候选解接受判断
+params.eps_outer = 1e-12;
 
 % 10) 随机种子
 params.seed = 7;
