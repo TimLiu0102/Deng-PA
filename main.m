@@ -73,7 +73,7 @@ params.max_swaps = 1;
 % 9) 外层停止参数
 params.T_max = 30;
 % eps_outer 仅用于外层AO停止，不参与任一子块候选解接受判断
-params.eps_outer = 1e-12;
+params.eps_outer = 1e-10;
 
 % 10) 随机种子
 params.seed = 7;
