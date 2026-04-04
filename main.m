@@ -22,10 +22,10 @@ params.d = 5;
 params.Delta = 0.5;
 
 % 3) 信道参数
-params.lambda = 0.05;
+params.lambda = 0.03;
 params.n_eff = 1.6;
-params.alphaW = 0.005;
-params.alphaL = 0.985;
+params.alphaW = 0.008;
+params.alphaL = 0.975;
 params.a = 10;
 params.b = 6;
 params.v = 1.1;
@@ -33,7 +33,7 @@ params.n_refr = 1.5;
 % 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
 params.eta = params.lambda^2 / (4*pi);
 params.P_max = 1.0;
-params.sigma2 = 1e-10;
+params.sigma2 = 1e-9;
 
 % 4) 初始化参数
 params.lambda_mov = 0.03;
@@ -41,19 +41,19 @@ params.lambda_mov = 0.03;
 % 5) WMMSE 参数
 params.I_W = 40;
 % WMMSE内循环停止阈值（用于AO_W子问题内部，不是外层接受门槛）
-params.eps_W = 1e-10;
+params.eps_W = 1e-9;
 
 % 6) 角度更新参数
 params.I_theta = 10;
-params.Delta_theta0 = 0.18;
-params.Delta_phi0 = 0.18;
+params.Delta_theta0 = 0.15;
+params.Delta_phi0 = 0.15;
 params.beta_theta = 0.7;
 params.beta_phi = 0.7;
 params.eps_accept_angle = 0;
 params.eps_stop_angle = 1e-8;
 
 % 7) 位置更新参数
-params.step_fd = 5e-3;
+params.step_fd = 2e-3;
 params.line_search_alpha0 = 1.0;
 params.line_search_beta = 0.5;
 params.line_search_max_iter = 12;
