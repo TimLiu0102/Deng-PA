@@ -24,8 +24,8 @@ params.Delta = 0.5;
 % 3) 信道参数
 params.lambda = 0.02;
 params.n_eff = 1.6;
-params.alphaW = 0.01;
-params.alphaL = 0.96;
+params.alphaW = 0.008;
+params.alphaL = 0.975;
 params.a = 10;
 params.b = 6;
 params.v = 1.1;
@@ -33,7 +33,7 @@ params.n_refr = 1.5;
 % 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
 params.eta = params.lambda^2 / (4*pi);
 params.P_max = 1.0;
-params.sigma2 = 5e-9;
+params.sigma2 = 1e-9;
 
 % 4) 初始化参数
 params.lambda_mov = 0.03;
@@ -53,8 +53,8 @@ params.eps_accept_angle = 0;
 params.eps_stop_angle = 1e-8;
 
 % 7) 位置更新参数
-params.step_fd = 1e-3;
-params.line_search_alpha0 = 0.5;
+params.step_fd = 2e-3;
+params.line_search_alpha0 = 1.0;
 params.line_search_beta = 0.5;
 params.line_search_max_iter = 12;
 params.eps_accept_X = 0;
@@ -73,7 +73,7 @@ params.max_swaps = 2;
 % 9) 外层停止参数
 params.T_max = 30;
 % eps_outer 仅用于外层AO停止，不参与任一子块候选解接受判断
-params.eps_outer = 1e-10;
+params.eps_outer = 1e-8;
 
 % 10) 随机种子
 params.seed = 7;
