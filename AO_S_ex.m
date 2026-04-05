@@ -1,5 +1,5 @@
 function [S_new, swap_flag] = AO_S_ex(params, scene, model, state)
-% AO_S_ex：固定 (X,W,theta,phi) 下，按用户组合穷举更新用户集 S
+% AO_S_ex：固定 (X,W,theta,phi) 下，按用户组合与排列穷举更新用户集 S
 
 if nargin < 3
     model = struct(); %#ok<NASGU>
@@ -16,11 +16,11 @@ all_sets = nchoosek(pool, K_serv);
 best_R = -inf;
 S_best = S_cur;
 for i = 1:size(all_sets,1)
-    S_candidate = all_sets(i,:);
-    R_candidate = evaluate_user_set_ex(params, scene, state, S_candidate);
-    if R_candidate > best_R
-        best_R = R_candidate;
-        S_best = S_candidate;
+    S_set = all_sets(i,:);
+    [S_set_best, R_set_best] = evaluate_user_set_permutations_ex(params, scene, state, S_set);
+    if R_set_best > best_R
+        best_R = R_set_best;
+        S_best = S_set_best;
     end
 end
 
@@ -36,6 +36,22 @@ if isfield(state,'C') && ~isempty(state.C)
     pool = state.C;
 else
     pool = 1:scene.K;
+end
+end
+
+function [S_best, R_best] = evaluate_user_set_permutations_ex(params, scene, state, S_set)
+% 对一个组合的全部排列穷举，返回评分最高的排列
+all_perm = perms(S_set);
+
+R_best = -inf;
+S_best = S_set(:).';
+for p = 1:size(all_perm,1)
+    S_candidate = all_perm(p,:);
+    R_candidate = evaluate_user_set_ex(params, scene, state, S_candidate);
+    if R_candidate > R_best
+        R_best = R_candidate;
+        S_best = S_candidate;
+    end
 end
 end
 
