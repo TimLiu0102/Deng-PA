@@ -63,7 +63,7 @@ params.I_X = 10;
 params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
-params.T_S = 1;
+params.T_S = 2;
 params.L_in = 4;
 params.L_out = 8;
 params.eps_accept_S = 0;
