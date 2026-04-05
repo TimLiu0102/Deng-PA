@@ -135,7 +135,8 @@ for t = 1:params.T_max
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
     % 2) 更新角度
-    [state.theta, state.phi] = AO_angle(params, scene, model, state);
+    % [state.theta, state.phi] = AO_angle(params, scene, model, state);
+    [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
     R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
