@@ -9,7 +9,8 @@ theta_new = double(state.theta);
 phi_new = double(state.phi);
 
 theta_grid = linspace(pi/2, pi, 10);
-phi_grid = linspace(-pi, pi, 10);
+phi_grid_full = linspace(-pi, pi, 11);
+phi_grid = phi_grid_full(2:end);
 max_round = 20;
 
 [N, M] = size(theta_new);
