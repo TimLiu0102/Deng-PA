@@ -22,7 +22,7 @@ params.d = 5;
 params.Delta = 0.5;
 
 % 3) 信道参数
-params.lambda = 0.01;
+params.lambda = 0.02;
 params.n_eff = 1.6;
 params.alphaW = 0.01;
 params.alphaL = 0.96;
@@ -36,39 +36,39 @@ params.P_max = 1.0;
 params.sigma2 = 5e-9;
 
 % 4) 初始化参数
-params.lambda_mov = 0.05;
+params.lambda_mov = 0.03;
 
 % 5) WMMSE 参数
 params.I_W = 40;
 % WMMSE内循环停止阈值（用于AO_W子问题内部，不是外层接受门槛）
-params.eps_W = 1e-12;
+params.eps_W = 1e-8;
 
 % 6) 角度更新参数
-params.I_theta = 6;
-params.Delta_theta0 = 0.08;
-params.Delta_phi0 = 0.08;
-params.beta_theta = 0.6;
-params.beta_phi = 0.6;
+params.I_theta = 10;
+params.Delta_theta0 = 0.15;
+params.Delta_phi0 = 0.15;
+params.beta_theta = 0.7;
+params.beta_phi = 0.7;
 params.eps_accept_angle = 0;
-params.eps_stop_angle = 1e-12;
+params.eps_stop_angle = 1e-8;
 
 % 7) 位置更新参数
 params.step_fd = 1e-3;
 params.line_search_alpha0 = 0.5;
 params.line_search_beta = 0.5;
-params.line_search_max_iter = 8;
+params.line_search_max_iter = 12;
 params.eps_accept_X = 0;
-params.eps_stop_X = 1e-12;
-params.I_X = 6;
+params.eps_stop_X = 1e-8;
+params.I_X = 10;
 params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
-params.T_S = 2;
-params.L_in = 2;
-params.L_out = 4;
+params.T_S = 1;
+params.L_in = 4;
+params.L_out = 8;
 params.eps_accept_S = 0;
-params.eps_stop_S = 1e-12;
-params.max_swaps = 1;
+params.eps_stop_S = 1e-8;
+params.max_swaps = 2;
 
 % 9) 外层停止参数
 params.T_max = 30;
