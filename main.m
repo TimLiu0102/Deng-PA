@@ -145,7 +145,8 @@ for t = 1:params.T_max
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
-    [state.S, state.swap_flag] = AO_S(params, scene, model, state);
+    % [state.S, state.swap_flag] = AO_S(params, scene, model, state);
+    [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
     R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
     % 5) 保存每轮四块更新后的中间 sum rate
