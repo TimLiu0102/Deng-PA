@@ -37,10 +37,10 @@ end
 
 %% ======================== 内部子函数 ========================
 function [theta_best, phi_best] = update_single_pa_angle_ex(n, m, params, scene, state, theta_cur_all, phi_cur_all, theta_grid, phi_grid)
-% 单个PA角度子问题更新（离散穷举100个候选组合）
+% 单个PA角度子问题更新（离散穷举100个候选组合 + 当前角度）
 theta_best = theta_cur_all(n,m);
 phi_best = phi_cur_all(n,m);
-R_best = -inf;
+R_best = evaluate_angle_candidate_ex(n, m, theta_best, phi_best, params, scene, state, theta_cur_all, phi_cur_all);
 
 for it = 1:numel(theta_grid)
     theta_try = theta_grid(it);

@@ -13,7 +13,7 @@ pool = pool(:).';
 
 all_sets = nchoosek(pool, K_serv);
 
-best_R = -inf;
+best_R = evaluate_user_set_ex(params, scene, state, S_cur);
 S_best = S_cur;
 for i = 1:size(all_sets,1)
     S_set = all_sets(i,:);
