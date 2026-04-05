@@ -22,7 +22,7 @@ params.d = 5;
 params.Delta = 0.5;
 
 % 3) 信道参数
-params.lambda = 0.03;
+params.lambda = 0.02;
 params.n_eff = 1.6;
 params.alphaW = 0.008;
 params.alphaL = 0.975;
@@ -41,7 +41,7 @@ params.lambda_mov = 0.03;
 % 5) WMMSE 参数
 params.I_W = 40;
 % WMMSE内循环停止阈值（用于AO_W子问题内部，不是外层接受门槛）
-params.eps_W = 1e-9;
+params.eps_W = 1e-8;
 
 % 6) 角度更新参数
 params.I_theta = 10;
