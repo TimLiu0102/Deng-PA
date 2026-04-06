@@ -9,9 +9,11 @@ S_cur = state.S(:).';
 K_serv = params.K_serv;
 
 pool = get_user_pool_ex(scene, state);
+pool = pool(:).';
+
 all_sets = nchoosek(pool, K_serv);
 
-best_R = evaluate_user_set_ex(params, scene, state, S_cur);
+best_R = -inf;
 S_best = S_cur;
 for i = 1:size(all_sets,1)
     S_set = all_sets(i,:);
@@ -29,8 +31,12 @@ end
 
 %% ======================== 内部子函数 ========================
 function pool = get_user_pool_ex(scene, state)
-% 用户搜索池：固定为全部用户
-pool = 1:scene.K;
+% 用户搜索池：优先用 state.C，否则用全部用户
+if isfield(state,'C') && ~isempty(state.C)
+    pool = state.C;
+else
+    pool = 1:scene.K;
+end
 end
 
 function [S_best, R_best] = evaluate_user_set_permutations_ex(params, scene, state, S_set)
