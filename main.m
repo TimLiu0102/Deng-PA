@@ -84,7 +84,11 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
+% 原论文初始化
+% state = Initialization(params, scene, model);
+
+% 随机/默认初始化（便于测试不同初始状态下的交替优化表现）
+state = Initialization_ra(params, scene, model);
 
 % 初始化不负责W，这里仅保证字段存在
 if ~isfield(state, 'W')
