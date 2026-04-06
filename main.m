@@ -67,7 +67,7 @@ params.eps_S = 1e-5;
 params.max_swaps = 1;
 
 % 9) 外层停止参数
-params.T_max = 50;
+params.T_max = 30;
 params.eps_outer = 1e-4;
 
 % 10) 随机种子
@@ -79,8 +79,8 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
-% state = Initialization_ra(params, scene, model);
+% state = Initialization(params, scene, model);
+state = Initialization_ra(params, scene, model);
 
 % 初始化不负责W，这里仅保证字段存在
 if ~isfield(state, 'W')
