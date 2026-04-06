@@ -87,7 +87,7 @@ model = Problem_formulation(params, scene);
 % 原论文初始化
 % state = Initialization(params, scene, model);
 
-% 随机/默认初始化（便于测试不同初始状态下的交替优化表现）
+% 弱初始化 / 去匹配初始化（用于观察交替优化本身的作用）
 state = Initialization_ra(params, scene, model);
 
 % 初始化不负责W，这里仅保证字段存在
@@ -139,18 +139,18 @@ for t = 1:params.T_max
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
     % 2) 更新角度
-    [state.theta, state.phi] = AO_angle(params, scene, model, state);
-    % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
+    % [state.theta, state.phi] = AO_angle(params, scene, model, state);
+    [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
     R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
-    state.X = AO_X(params, scene, model, state);
-    % state.X = AO_X_ex(params, scene, model, state);
+    % state.X = AO_X(params, scene, model, state);
+    state.X = AO_X_ex(params, scene, model, state);
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
-    [state.S, state.swap_flag] = AO_S(params, scene, model, state);
-    % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
+    % [state.S, state.swap_flag] = AO_S(params, scene, model, state);
+    [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
     R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
     % 5) 保存每轮四块更新后的中间 sum rate
