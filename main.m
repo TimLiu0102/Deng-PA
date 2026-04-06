@@ -60,7 +60,7 @@ params.I_X = 6;
 params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
-params.T_S = 2;
+params.T_S = 1;
 params.L_in = 2;
 params.L_out = 4;
 params.eps_S = 1e-5;
@@ -68,6 +68,7 @@ params.max_swaps = 1;
 
 % 9) 外层停止参数
 params.T_max = 30;
+params.T_min = 5;
 params.eps_outer = 1e-4;
 
 % 10) 随机种子
@@ -163,7 +164,7 @@ for t = 1:params.T_max
     % 8) 外层停止判断
     % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
     % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
-    if abs(R_new - R_old) < params.eps_outer
+    if t >= params.T_min && abs(R_new - R_old) < params.eps_outer
         break;
     end
 
