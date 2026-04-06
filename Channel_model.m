@@ -50,6 +50,7 @@ feed_pos = [xW; zeros(1,N); params.d*ones(1,N)]; % 3 x N
 
 if isfield(params,'user_x_rng'), xr = params.user_x_rng; else, xr = [0, params.Dx]; end
 if isfield(params,'user_y_rng'), yr = params.user_y_rng; else, yr = [0, params.Dy]; end
+
 xk = xr(1) + (xr(2)-xr(1))*rand(1,K);
 yk = yr(1) + (yr(2)-yr(1))*rand(1,K);
 zk = zeros(1,K);
@@ -122,7 +123,8 @@ for m = 1:M
     ups = radiation_pattern(local_xyz(1), local_xyz(2), local_xyz(3), params);
 
     % 严格对应论文自由空间信道公式：sqrt(eta) * alphaL^d * Upsilon
-    h_tilde_kn(m) = sqrt(params.eta) * (params.alphaL^d_k_nm) * ups;
+    %h_tilde_kn(m) = sqrt(params.eta) * (params.alphaL^d_k_nm) * ups;
+    h_tilde_kn(m) = sqrt(params.eta) * (params.alphaL^d_k_nm) * 1;
 end
 end
 

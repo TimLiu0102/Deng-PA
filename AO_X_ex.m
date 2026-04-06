@@ -33,6 +33,7 @@ for it = 1:max_round
         for g = 1:numel(grid)
             x_try = grid(g);
             [R_try, X_try] = evaluate_position_candidate_ex(n, m, x_try, X_cur, params, scene, state);
+            R_rec(g)=R_try;
             if R_try > R_best
                 R_best = R_try;
                 x_best = X_try(n,m);

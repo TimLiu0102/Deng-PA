@@ -9,9 +9,9 @@ params = struct();
 
 % 1) 系统规模参数
 params.N = 4;
-params.M = 4;
+params.M =4;
 params.K = 32;
-params.NRF = 4;
+params.NRF =params.N ;
 params.K_max = 4;
 params.K_serv = min(params.NRF, params.K_max);
 
@@ -60,14 +60,14 @@ params.I_X = 6;
 params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
-params.T_S = 1;
+params.T_S = 2;
 params.L_in = 2;
 params.L_out = 4;
 params.eps_S = 1e-5;
 params.max_swaps = 1;
 
 % 9) 外层停止参数
-params.T_max = 30;
+params.T_max = 50;
 params.T_min = 5;
 params.eps_outer = 1e-4;
 
@@ -80,8 +80,8 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-% state = Initialization(params, scene, model);
-state = Initialization_ra(params, scene, model);
+state = Initialization(params, scene, model);
+% state = Initialization_ra(params, scene, model);
 
 % 初始化不负责W，这里仅保证字段存在
 if ~isfield(state, 'W')
@@ -129,14 +129,14 @@ for t = 1:params.T_max
     state.W = AO_W(params, scene, model, state);
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
-    % 2) 更新角度
-    [state.theta, state.phi] = AO_angle(params, scene, model, state);
-    % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
-    R_after_angle = Signal_model('sum_rate', params, scene, state, []);
+%     % 2) 更新角度
+%     [state.theta, state.phi] = AO_angle(params, scene, model, state);
+%     % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
+%     R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
-    state.X = AO_X(params, scene, model, state);
-    % state.X = AO_X_ex(params, scene, model, state);
+    % state.X = AO_X(params, scene, model, state);
+    state.X = AO_X_ex(params, scene, model, state);
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
