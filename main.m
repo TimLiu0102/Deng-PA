@@ -67,7 +67,7 @@ params.eps_S = 1e-5;
 params.max_swaps = 1;
 
 % 9) 外层停止参数
-params.T_max = 50;
+params.T_max = 30;
 params.eps_outer = 1e-4;
 
 % 10) 随机种子
