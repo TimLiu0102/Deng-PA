@@ -74,6 +74,9 @@ params.eps_outer = 1e-4;
 params.seed = 7;
 rng(params.seed);
 
+params.user_x_rng = [params.Dx/2 - 0.2, params.Dx/2 + 0.2];
+params.user_y_rng = [0.2*params.Dy, 0.8*params.Dy];
+
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
