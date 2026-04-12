@@ -74,7 +74,9 @@ end
 
 function ups = radiation_pattern(x, y, z, params)
 % 对应论文局部方向图 Upsilon(x,y,z)
-y_eff = max(y, 1e-9);  % 仅最基本数值保护，不改变公式结构
+% y_eff = max(y, 1e-9);  % 仅最基本数值保护，不改变公式结构
+eps0 = 1e-9;  % 测试用平滑 y_eff 保护
+y_eff = sqrt(y.^2 + eps0^2);
 k0 = 2*pi/params.lambda;
 
 w1 = params.v * params.a * params.lambda;
