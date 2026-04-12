@@ -149,8 +149,8 @@ for t = 1:params.T_max
     R_after_angle = R_after_W;
 
     % 3) 只更新位置
-    state.X = AO_X(params, scene, model, state);
-    % state.X = AO_X_ex(params, scene, model, state);
+    % state.X = AO_X(params, scene, model, state);
+    state.X = AO_X_ex(params, scene, model, state);
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 冻结用户集合
@@ -193,4 +193,14 @@ result.model = model;
 
 Print_and_Plot(params, scene, model, result);
 
+%% 测试X输出
+
+deltaX = result.history.R_after_X - result.history.R_after_angle;
+disp('deltaX =');
+disp(deltaX.');
+
+disp('||X - X0||_F =');
+disp(norm(result.state.X - result.history.X0, 'fro'));
+
 end
+
