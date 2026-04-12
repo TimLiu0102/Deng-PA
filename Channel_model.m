@@ -113,23 +113,41 @@ local_xyz = Rx * Rz * v;
 end
 
 function h_tilde_kn = free_space_channel(k, n, params, scene, state)
-% 对应论文自由空间信道 h_tilde_{k,n}(x_n)
+% 自由空间信道
+% 原模型：方向图 + 全局到局部坐标变换
+% 当前测试模型：全向 LoS 自由空间传播
+% 本次修改目的：排查是否是“方向图 + 局部坐标变换”导致 X 块难以更新
 M = params.M;
 q_k = scene.user_pos(:,k);
 x_n = state.X(n,:).';
-theta_n = state.theta(n,:).';
-phi_n = state.phi(n,:).';
+
+% ================= 原方向性模型（保留注释，不删除） =================
+% theta_n = state.theta(n,:).';
+% phi_n = state.phi(n,:).';
+%
+% h_tilde_kn = zeros(M,1);
+% for m = 1:M
+%     p_nm = [scene.xW(n); x_n(m); params.d];
+%     d_k_nm = norm(q_k - p_nm);
+%
+%     local_xyz = global_to_local(q_k, p_nm, theta_n(m), phi_n(m));
+%     ups = radiation_pattern(local_xyz(1), local_xyz(2), local_xyz(3), params);
+%
+%     h_tilde_kn(m) = sqrt(params.eta) * (params.alphaL^d_k_nm) * ups;
+% end
+
+% ================= 测试用全向 LoS 模型 =================
+% 说明：
+% 1) 去掉方向图项 radiation_pattern(...)
+% 2) 去掉全局到局部坐标变换 global_to_local(...)
+% 3) 仅保留全向 LoS 自由空间传播，用于测试是否是方向性自由空间建模导致 X 块难以更新
 
 h_tilde_kn = zeros(M,1);
 for m = 1:M
     p_nm = [scene.xW(n); x_n(m); params.d];
     d_k_nm = norm(q_k - p_nm);
 
-    local_xyz = global_to_local(q_k, p_nm, theta_n(m), phi_n(m));
-    ups = radiation_pattern(local_xyz(1), local_xyz(2), local_xyz(3), params);
-
-    % 严格对应论文自由空间信道公式：sqrt(eta) * alphaL^d * Upsilon
-    h_tilde_kn(m) = sqrt(params.eta) * (params.alphaL^d_k_nm) * ups;
+    h_tilde_kn(m) = (params.eta / d_k_nm) * exp(-1j * 2*pi/params.lambda * d_k_nm);
 end
 end
 
