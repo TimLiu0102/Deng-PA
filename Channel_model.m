@@ -45,7 +45,8 @@ function scene = build_scene(params)
 % 对应论文几何定义：用户位置、波导横向坐标、馈电点
 N = params.N; M = params.M; K = params.K;
 
-xW = ((2*(1:N)-1)/(2*N)) * params.Dx;      % 1 x N
+% xW = ((2*(1:N)-1)/(2*N)) * params.Dx;      % 1 x N
+xW = params.Dx/2 + ((1:N) - (N+1)/2) * (params.lambda/2);  % 相邻间距lambda/2，对称排布
 feed_pos = [xW; zeros(1,N); params.d*ones(1,N)]; % 3 x N
 
 if isfield(params,'user_x_rng'), xr = params.user_x_rng; else, xr = [0, params.Dx]; end
@@ -74,7 +75,9 @@ end
 
 function ups = radiation_pattern(x, y, z, params)
 % 对应论文局部方向图 Upsilon(x,y,z)
-y_eff = max(y, 1e-9);  % 仅最基本数值保护，不改变公式结构
+% y_eff = max(y, 1e-9);  % 仅最基本数值保护，不改变公式结构
+eps0 = 1e-9;  % 测试用平滑 y_eff 保护
+y_eff = sqrt(y.^2 + eps0^2);
 k0 = 2*pi/params.lambda;
 
 w1 = params.v * params.a * params.lambda;
@@ -87,9 +90,13 @@ R2 = y_eff;
 Theta1 = atan(params.lambda * y_eff / (pi * params.n_refr * w1));
 Theta2 = atan(params.lambda * y_eff / (pi * params.n_refr * w2));
 
+% ups = sqrt((w1*w2)/(W1*W2)) * B * exp( ...
+%     -(x^2/W1^2 + z^2/W2^2) ...
+%     -1j * k0 * params.n_refr * (x^2/(2*R1) + z^2/(2*R2) + y_eff) ...
+%     +1j * (Theta1 + Theta2)/2 );
+% 测试版本：只保留 y 项、去掉 x,z 横向笔形项
 ups = sqrt((w1*w2)/(W1*W2)) * B * exp( ...
-    -(x^2/W1^2 + z^2/W2^2) ...
-    -1j * k0 * params.n_refr * (x^2/(2*R1) + z^2/(2*R2) + y_eff) ...
+    -1j * k0 * params.n_refr * y_eff ...
     +1j * (Theta1 + Theta2)/2 );
 end
 
