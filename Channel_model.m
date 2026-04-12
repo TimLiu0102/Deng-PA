@@ -74,7 +74,9 @@ end
 
 function ups = radiation_pattern(x, y, z, params)
 % 对应论文局部方向图 Upsilon(x,y,z)
-y_eff = max(y, 1e-9);  % 仅最基本数值保护，不改变公式结构
+% y_eff = max(y, 1e-9);  % 仅最基本数值保护，不改变公式结构
+eps0 = 1e-9;  % 测试用平滑 y_eff 保护
+y_eff = sqrt(y.^2 + eps0^2);
 k0 = 2*pi/params.lambda;
 
 w1 = params.v * params.a * params.lambda;
@@ -87,9 +89,13 @@ R2 = y_eff;
 Theta1 = atan(params.lambda * y_eff / (pi * params.n_refr * w1));
 Theta2 = atan(params.lambda * y_eff / (pi * params.n_refr * w2));
 
+% ups = sqrt((w1*w2)/(W1*W2)) * B * exp( ...
+%     -(x^2/W1^2 + z^2/W2^2) ...
+%     -1j * k0 * params.n_refr * (x^2/(2*R1) + z^2/(2*R2) + y_eff) ...
+%     +1j * (Theta1 + Theta2)/2 );
+% 测试版本：只保留 y 项、去掉 x,z 横向笔形项
 ups = sqrt((w1*w2)/(W1*W2)) * B * exp( ...
-    -(x^2/W1^2 + z^2/W2^2) ...
-    -1j * k0 * params.n_refr * (x^2/(2*R1) + z^2/(2*R2) + y_eff) ...
+    -1j * k0 * params.n_refr * y_eff ...
     +1j * (Theta1 + Theta2)/2 );
 end
 
