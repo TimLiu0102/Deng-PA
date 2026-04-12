@@ -153,8 +153,9 @@ for t = 1:params.T_max
     state.X = AO_X_ex(params, scene, model, state);
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
-    % 4) 冻结用户集合
-    R_after_S = R_after_X;
+    % 4) 在新的X基础上重新更新W，使W适配新信道
+    state.W = AO_W(params, scene, model, state);
+    R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
     % 5) 保存每轮四块更新后的中间 sum rate
     history.R_after_W(end+1,1) = R_after_W;
