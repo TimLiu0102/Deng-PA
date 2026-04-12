@@ -19,7 +19,7 @@ params.K_serv = min(params.NRF, params.K_max);
 params.Dx = 10;
 params.Dy = 10;
 params.d = 5;
-params.Delta = 0.5;
+params.Delta = 0.01;
 
 % 3) 信道参数
 params.lambda = 0.01;
