@@ -19,7 +19,7 @@ params.K_serv = min(params.NRF, params.K_max);
 params.Dx = 10;
 params.Dy = 10;
 params.d = 5;
-params.Delta = 0.5;
+params.Delta = 0.01;
 
 % 3) 信道参数
 params.lambda = 0.01;
@@ -74,8 +74,8 @@ params.eps_outer = 1e-4;
 params.seed = 7;
 rng(params.seed);
 
-params.user_x_rng = [params.Dx/2 - 0.2, params.Dx/2 + 0.2];
-params.user_y_rng = [0.2*params.Dy, 0.8*params.Dy];
+% params.user_x_rng = [params.Dx/2 - 0.2, params.Dx/2 + 0.2];
+% params.user_y_rng = [0.2*params.Dy, 0.8*params.Dy];
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
@@ -149,8 +149,8 @@ for t = 1:params.T_max
     R_after_angle = R_after_W;
 
     % 3) 只更新位置
-    state.X = AO_X(params, scene, model, state);
-    % state.X = AO_X_ex(params, scene, model, state);
+    % state.X = AO_X(params, scene, model, state);
+    state.X = AO_X_ex(params, scene, model, state);
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 冻结用户集合
@@ -193,4 +193,14 @@ result.model = model;
 
 Print_and_Plot(params, scene, model, result);
 
+%% 测试X输出
+
+deltaX = result.history.R_after_X - result.history.R_after_angle;
+disp('deltaX =');
+disp(deltaX.');
+
+disp('||X - X0||_F =');
+disp(norm(result.state.X - result.history.X0, 'fro'));
+
 end
+
