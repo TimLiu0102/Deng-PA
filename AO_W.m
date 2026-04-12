@@ -123,9 +123,9 @@ function W = solve_mu_bisection(A, B, Pmax)
 % 一维二分搜索mu以满足 tr(WW^H)<=Pmax
 Nt = size(A,1);
 I = eye(Nt);
-%eps_reg = 1e-10;
- eps_reg = 1e-6 * real(trace(A)) / Nt;
- if eps_reg <= 0
+% eps_reg = 1e-10;
+eps_reg = 1e-6 * real(trace(A)) / Nt;
+if eps_reg <= 0
     eps_reg = 1e-8;
 end
 

@@ -27,11 +27,14 @@ for it = 1:max_round
 
     M = size(X_cur,2);
     for m = 1:M
-        x_best = X_cur(n,m);
-        R_best = -inf;
+        x_cur = X_cur(n,m);
+        [R_cur, ~] = evaluate_position_candidate_ex(n, m, x_cur, X_cur, params, scene, state);
+        x_best = x_cur;
+        R_best = R_cur;
+        cand = [grid, x_cur];
 
-        for g = 1:numel(grid)
-            x_try = grid(g);
+        for g = 1:numel(cand)
+            x_try = cand(g);
             [R_try, X_try] = evaluate_position_candidate_ex(n, m, x_try, X_cur, params, scene, state);
             if R_try > R_best
                 R_best = R_try;
@@ -39,7 +42,11 @@ for it = 1:max_round
             end
         end
 
-        X_cur(n,m) = x_best;
+        if R_best > R_cur + params.eps_X
+            X_cur(n,m) = x_best;
+        else
+            X_cur(n,m) = x_cur;
+        end
     end
 
     if isequal(X_cur(n,:), x_old_round)
