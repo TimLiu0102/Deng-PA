@@ -74,6 +74,9 @@ params.eps_outer = 1e-4;
 params.seed = 7;
 rng(params.seed);
 
+params.user_x_rng = [params.Dx/2 - 0.2, params.Dx/2 + 0.2];
+params.user_y_rng = [0.2*params.Dy, 0.8*params.Dy];
+
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
@@ -89,6 +92,14 @@ end
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
 end
+
+% X-only 测试：先生成一次基准W，然后冻结其他块
+state.W = AO_W(params, scene, model, state);
+
+W_fix = state.W;
+theta_fix = state.theta;
+phi_fix = state.phi;
+S_fix = state.S;
 
 %% 第5部分：初始性能与历史量
 R_old = Signal_model('sum_rate', params, scene, state, []);
@@ -121,27 +132,29 @@ history.swap_flag = false;
 
 %% 第6部分：外层交替优化主循环（固定顺序）
 for t = 1:params.T_max
-    % 当前外层迭代编号，供 AO_S 周期触发判断
+    % 当前外层迭代编号
     state.t = t;
 
-    % 1) 更新 W
-    state.W = AO_W(params, scene, model, state);
+    % X-only 测试：冻结其他块
+    state.W = W_fix;
+    state.theta = theta_fix;
+    state.phi = phi_fix;
+    state.S = S_fix;
+    state.swap_flag = false;
+
+    % 1) 冻结W
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
-    % 2) 更新角度
-    [state.theta, state.phi] = AO_angle(params, scene, model, state);
-    % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
-    R_after_angle = Signal_model('sum_rate', params, scene, state, []);
+    % 2) 冻结角度
+    R_after_angle = R_after_W;
 
-    % 3) 更新位置
+    % 3) 只更新位置
     state.X = AO_X(params, scene, model, state);
     % state.X = AO_X_ex(params, scene, model, state);
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
-    % 4) 更新用户集合
-    [state.S, state.swap_flag] = AO_S(params, scene, model, state);
-    % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
-    R_after_S = Signal_model('sum_rate', params, scene, state, []);
+    % 4) 冻结用户集合
+    R_after_S = R_after_X;
 
     % 5) 保存每轮四块更新后的中间 sum rate
     history.R_after_W(end+1,1) = R_after_W;
