@@ -45,7 +45,8 @@ function scene = build_scene(params)
 % 对应论文几何定义：用户位置、波导横向坐标、馈电点
 N = params.N; M = params.M; K = params.K;
 
-xW = ((2*(1:N)-1)/(2*N)) * params.Dx;      % 1 x N
+% xW = ((2*(1:N)-1)/(2*N)) * params.Dx;      % 1 x N
+xW = params.Dx/2 + ((1:N) - (N+1)/2) * (params.lambda/2);  % 相邻间距lambda/2，对称排布
 feed_pos = [xW; zeros(1,N); params.d*ones(1,N)]; % 3 x N
 
 if isfield(params,'user_x_rng'), xr = params.user_x_rng; else, xr = [0, params.Dx]; end
