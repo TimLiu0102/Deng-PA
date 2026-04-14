@@ -124,7 +124,7 @@ xbar = x_n;
 fbar = f0;
 for t = 1:params.line_search_max_iter
     x_try = x_n + alpha * d;
-    x_try = Constraint_Checker('project_position', params, x_try);
+    norm(x_try - x_n)x_try = Constraint_Checker('project_position', params, x_try);
 
     f_try = local_objective_fn(n, x_try, X_ref, params, scene, state);
     if f_try > f0
