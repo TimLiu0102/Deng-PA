@@ -4,6 +4,23 @@ function W_new = AO_W(params, scene, model, state)
 if nargin < 3
     model = struct(); %#ok<NASGU>
 end
+if isfield(state, 'run_id')
+    run_id = state.run_id;
+else
+    run_id = 'no_run_id';
+end
+
+if isfield(state, 't')
+    t_id = state.t;
+else
+    t_id = -1;
+end
+
+if isfield(state, 'ao_w_call_id')
+    call_id = state.ao_w_call_id;
+else
+    call_id = -1;
+end
 
 %% 1) 构造当前服务用户复合信道矩阵 H (NM x Kc)
 H = build_service_channel_matrix(params, scene, state);
@@ -27,6 +44,7 @@ for it = 1:params.I_W
     v = update_weight_v(H, W, u, params.sigma2); % Kc x 1
 
     % 3.3 固定u,v更新W，并用mu二分满足功率约束
+    W_prev_iter = W;
     W = update_precoder_given_uv(H, u, v, params.P_max);
 
     % 3.4 用真实sum rate做内循环停止判断
