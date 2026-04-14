@@ -134,31 +134,17 @@ user_idx = ch_out.user_idx(:).';
 end
 
 function W = ensure_precoder_compatible(state, H, Pmax)
-% 保证W与当前服务用户维度兼容；若缺失则给一个简单可读初值
+% 检查W与当前服务用户维度兼容
+%#ok<INUSD>
 Nt = size(H,1);
 Kc = size(H,2);
 
-ok = false;
 if isfield(state,'W') && ~isempty(state.W)
-    W0 = state.W;
-    ok = (size(W0,1)==Nt) && (size(W0,2)==Kc);
-end
-
-if ok
-    W = W0;
-    return;
-end
-
-W = zeros(Nt, Kc);
-for k = 1:Kc
-    hk = H(:,k);
-    nrm = norm(hk);
-    if nrm > 0
-        W(:,k) = hk / nrm;
+    W = state.W;
+    if (size(W,1)==Nt) && (size(W,2)==Kc)
+        return;
     end
 end
-p = real(trace(W*W'));
-if p > Pmax && p > 0
-    W = W * sqrt(Pmax/p);
-end
+
+error('Signal_model: state.W 缺失或尺寸不匹配');
 end

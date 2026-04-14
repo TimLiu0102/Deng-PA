@@ -1,5 +1,5 @@
 function state = Initialization(params, scene, model)
-% Initialization：严格对应论文初始化四步，不包含W初始化
+% Initialization：严格对应论文初始化四步，并显式生成初始预编码矩阵 W^(0)
 
 if nargin < 3
     model = struct(); %#ok<NASGU>
@@ -22,12 +22,21 @@ X = build_initial_positions(C, matching, y_star, y_ref, params);
 %% Step 4) Initial Orientation Angles
 [theta, phi] = build_initial_angles(C, matching, X, scene, params);
 
+%% Step 5) Initial Precoders W^(0) by MRT
+tmp_state = struct();
+tmp_state.S = S;
+tmp_state.X = X;
+tmp_state.theta = theta;
+tmp_state.phi = phi;
+W = build_initial_precoder(params, scene, tmp_state);
+
 % 输出初始化状态与中间量
 state = struct();
 state.S = S;
 state.X = X;
 state.theta = theta;
 state.phi = phi;
+state.W = W;
 
 state.C = C;
 state.Emax = Emax;
@@ -234,5 +243,29 @@ if phi <= -pi
 end
 if phi > pi
     phi = phi - 2*pi;
+end
+end
+
+function W0 = build_initial_precoder(params, scene, state)
+% 对应初始化显式 W^(0)：按当前服务用户复合信道做 MRT 并统一功率缩放
+extra_ch = struct();
+extra_ch.use_all = false;
+ch_out = Channel_model('all_users', params, scene, state, extra_ch);
+H = ch_out.H;
+
+Nt = size(H,1);
+Kserv = size(H,2);
+W0 = zeros(Nt, Kserv);
+for k = 1:Kserv
+    hk = H(:,k);
+    nrm = norm(hk);
+    if nrm > 0
+        W0(:,k) = hk / nrm;
+    end
+end
+
+p = real(trace(W0*W0'));
+if p > params.P_max && p > 0
+    W0 = W0 * sqrt(params.P_max/p);
 end
 end
