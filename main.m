@@ -82,16 +82,13 @@ model = Problem_formulation(params, scene);
 state = Initialization(params, scene, model);
 % state = Initialization_ra(params, scene, model);
 
-% 初始化不负责W，这里仅保证字段存在
-if ~isfield(state, 'W')
-    state.W = [];
-end
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
 end
 
 %% 第5部分：初始性能与历史量
-R_old = Signal_model('sum_rate', params, scene, state, []);
+rates0 = Signal_model('individual_rates', params, scene, state, []);
+R_old = sum(rates0);
 
 history = struct();
 
@@ -100,6 +97,7 @@ history.X0 = state.X;
 history.theta0 = state.theta;
 history.phi0 = state.phi;
 history.S0 = state.S;
+history.rates0 = rates0;
 
 % 初始 sum rate
 history.R_sum = R_old;
