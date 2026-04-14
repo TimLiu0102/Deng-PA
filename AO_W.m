@@ -16,6 +16,15 @@ W = initialize_precoder_if_needed(params, state, H);
 state_eval = state;
 state_eval.W = W;
 R_prev = Signal_model('sum_rate', params, scene, state_eval, struct());
+W_best = W;
+R_best = R_prev;
+
+state_in = state;
+R_in = Signal_model('sum_rate', params, scene, state_in, struct());
+pow_in = real(trace(state.W * state.W'));
+pow_init = real(trace(W * W'));
+fprintf('AO_W start: R_in=%.10f, R_prev=%.10f, dR_init=%.10e, pow_in=%.10f, pow_init=%.10f, ||W_init-W_in||_F=%.10e\n', ...
+    R_in, R_prev, R_prev - R_in, pow_in, pow_init, norm(W - state.W, 'fro'));
 
 for it = 1:params.I_W
     % 3.1 MMSE接收器更新 u_k
@@ -25,18 +34,32 @@ for it = 1:params.I_W
     v = update_weight_v(H, W, u, params.sigma2); % Kc x 1
 
     % 3.3 固定u,v更新W，并用mu二分满足功率约束
+    W_prev_iter = W;
     W = update_precoder_given_uv(H, u, v, params.P_max);
 
     % 3.4 用真实sum rate做内循环停止判断
     state_eval.W = W;
     R_now = Signal_model('sum_rate', params, scene, state_eval, struct());
+    fprintf('AO_W it=%d: R_now=%.10f, R_best=%.10f, dR_now_prev=%.10e, ||W-W_prev||_F=%.10e\n', ...
+        it, R_now, R_best, R_now - R_prev, norm(W - W_prev_iter, 'fro'));
+    if R_now > R_best
+        W_best = W;
+        R_best = R_now;
+        fprintf('AO_W it=%d: accept as new best\n', it);
+    end
     if abs(R_now - R_prev) < params.eps_W
         break;
     end
     R_prev = R_now;
 end
 
-W_new = W;
+state_out = state;
+state_out.W = W_best;
+R_out = Signal_model('sum_rate', params, scene, state_out, struct());
+fprintf('AO_W end: R_out=%.10f, R_best=%.10f, R_out-R_in=%.10e, ||W_best-W_in||_F=%.10e\n', ...
+    R_out, R_best, R_out - R_in, norm(W_best - state.W, 'fro'));
+
+W_new = W_best;
 end
 
 %% ======================== 内部子函数 ========================
