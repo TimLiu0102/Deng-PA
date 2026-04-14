@@ -16,6 +16,8 @@ W = initialize_precoder_if_needed(params, state, H);
 state_eval = state;
 state_eval.W = W;
 R_prev = Signal_model('sum_rate', params, scene, state_eval, struct());
+W_best = W;
+R_best = R_prev;
 
 for it = 1:params.I_W
     % 3.1 MMSE接收器更新 u_k
@@ -30,13 +32,17 @@ for it = 1:params.I_W
     % 3.4 用真实sum rate做内循环停止判断
     state_eval.W = W;
     R_now = Signal_model('sum_rate', params, scene, state_eval, struct());
+    if R_now > R_best
+        W_best = W;
+        R_best = R_now;
+    end
     if abs(R_now - R_prev) < params.eps_W
         break;
     end
     R_prev = R_now;
 end
 
-W_new = W;
+W_new = W_best;
 end
 
 %% ======================== 内部子函数 ========================
