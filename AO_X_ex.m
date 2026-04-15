@@ -47,11 +47,20 @@ for it = 1:max_round
     DEBUG_X_iter.DEBUG_X_x_raw = nan(M, L);
     DEBUG_X_iter.DEBUG_X_x_proj = nan(M, L);
     DEBUG_X_iter.DEBUG_X_delta_f = nan(L, 1);
+    DEBUG_X_iter.DEBUG_X_mode = 'exhaustive';
+    DEBUG_X_iter.DEBUG_X_pa_cells = cell(M,1);
+    DEBUG_X_iter.DEBUG_X_waveguide_states = nan(M, M+1);
+    DEBUG_X_iter.DEBUG_X_waveguide_states(:,1) = X_cur(n,:).';
     debug_col = 0;
 
     for m = 1:M
         x_cur_m = X_cur(n,m);
         [R_cur, ~] = evaluate_position_candidate_ex(n, m, x_cur_m, X_cur, params, scene, state);
+        X_before_pa = X_cur(n,:).';
+        grid_vals = grid(:);
+        grid_xm_proj = nan(numel(grid),1);
+        grid_delta_f = nan(numel(grid),1);
+        best_grid_index = nan;
 
         % 当前点作为候选基准，若离散网格中不存在更优点，则保持当前位置不变
         x_best = x_cur_m;
@@ -73,13 +82,35 @@ for it = 1:max_round
                 DEBUG_X_iter.DEBUG_X_delta_f(debug_col,1) = R_try - R_cur;
             end
 
+            grid_xm_proj(g,1) = X_try(n,m);
+            grid_delta_f(g,1) = R_try - R_cur;
+
             if R_try > R_best
                 R_best = R_try;
                 x_best = X_try(n,m);
+                best_grid_index = g;
             end
         end
 
+        if isnan(best_grid_index)
+            [~, best_grid_index] = min(abs(grid_xm_proj - x_best));
+        end
+
         X_cur(n,m) = x_best;
+        DEBUG_X_iter.DEBUG_X_waveguide_states(:,m+1) = X_cur(n,:).';
+
+        DEBUG_X_pa = struct();
+        DEBUG_X_pa.DEBUG_X_x_cur = x_cur_m;
+        DEBUG_X_pa.DEBUG_X_R_cur = R_cur;
+        DEBUG_X_pa.DEBUG_X_grid_vals = grid_vals;
+        DEBUG_X_pa.DEBUG_X_grid_xm_proj = grid_xm_proj;
+        DEBUG_X_pa.DEBUG_X_grid_delta_f = grid_delta_f;
+        DEBUG_X_pa.DEBUG_X_best_x = x_best;
+        DEBUG_X_pa.DEBUG_X_best_R = R_best;
+        DEBUG_X_pa.DEBUG_X_best_grid_index = best_grid_index;
+        DEBUG_X_pa.DEBUG_X_X_before_pa = X_before_pa;
+        DEBUG_X_pa.DEBUG_X_X_after_pa = X_cur(n,:).';
+        DEBUG_X_iter.DEBUG_X_pa_cells{m,1} = DEBUG_X_pa;
     end
 
     state_round_new = state;

@@ -116,6 +116,7 @@ history.phi_cells = {};
 
 %% ======================== DEBUG_X START ========================
 history.DEBUG_X_cells = {};
+history.X_update_mode = '';
 %% ======================== DEBUG_X END ==========================
 
 % 交换标记历史（保留原有语义：首个元素对应初始化）
@@ -136,8 +137,10 @@ for t = 1:params.T_max
     R_after_angle = R_after_W;
 
     % 3) 更新位置
-    % [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
-    [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
+    [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
+    history.X_update_mode = 'gradient';
+    % [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
+    % history.X_update_mode = 'exhaustive';
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
