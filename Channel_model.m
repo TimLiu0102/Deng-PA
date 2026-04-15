@@ -110,19 +110,13 @@ function h_tilde_kn = free_space_channel(k, n, params, scene, state)
 M = params.M;
 q_k = scene.user_pos(:,k);
 x_n = state.X(n,:).';
-theta_n = state.theta(n,:).';
-phi_n = state.phi(n,:).';
 
 h_tilde_kn = zeros(M,1);
 for m = 1:M
     p_nm = [scene.xW(n); x_n(m); params.d];
     d_k_nm = norm(q_k - p_nm);
-
-    local_xyz = global_to_local(q_k, p_nm, theta_n(m), phi_n(m));
-    ups = radiation_pattern(local_xyz(1), local_xyz(2), local_xyz(3), params);
-
-    % 严格对应论文自由空间信道公式：sqrt(eta) * alphaL^d * Upsilon
-    h_tilde_kn(m) = sqrt(params.eta) * (params.alphaL^d_k_nm) * ups;
+    h_tilde_kn(m) = (params.eta / d_k_nm) ...
+        * exp(-1j * 2*pi/params.lambda * d_k_nm);
 end
 end
 
