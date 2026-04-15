@@ -81,13 +81,13 @@ model = Problem_formulation(params, scene);
 %% 第4部分：初始化
 % ======================== 初始化方案切换（临时测试） ========================
 % 原始论文初始化
-% state = Initialization(params, scene, model);
+state = Initialization(params, scene, model);
 %
 % 随机/默认初始化
 % state = Initialization_ra(params, scene, model);
 %
 % 仅随机化X初始化：保留原始S、theta、phi，只替换X并重算W
-state = Initialization_raX(params, scene, model);
+% state = Initialization_raX(params, scene, model);
 % =========================================================================
 
 if ~isfield(state, 'swap_flag')
