@@ -122,6 +122,10 @@ history.X_cells = {};
 history.theta_cells = {};
 history.phi_cells = {};
 
+%% ======================== DEBUG_X START ========================
+history.DEBUG_X_cells = {};
+%% ======================== DEBUG_X END ==========================
+
 % 交换标记历史（保留原有语义：首个元素对应初始化）
 history.swap_flag = false;
 
@@ -152,7 +156,7 @@ for t = 1:params.T_max
     R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
-    state.X = AO_X(params, scene, model, state);
+    [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
     % state.X = AO_X_ex(params, scene, model, state);
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
@@ -182,6 +186,10 @@ for t = 1:params.T_max
     history.theta_cells{t,1} = state.theta;
     history.phi_cells{t,1} = state.phi;
     history.swap_flag(end+1,1) = state.swap_flag;
+
+    %% ======================== DEBUG_X START ========================
+    history.DEBUG_X_cells{t,1} = DEBUG_X_t;
+    %% ======================== DEBUG_X END ==========================
 
     % 8) 外层停止判断
     % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
