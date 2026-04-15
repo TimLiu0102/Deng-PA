@@ -57,7 +57,7 @@ params.line_search_beta = 0.5;
 % params.line_search_max_iter = 8;
 % ======================== DEBUG_PARAM_X START ========================
 % X-only 参数对比测试：只调整 line search 初始步长和最大回溯次数
-params.line_search_alpha0 = 0.2;
+params.line_search_alpha0 = 0.5;
 params.line_search_max_iter = 12;
 % ========================= DEBUG_PARAM_X END =========================
 params.eps_X = 1e-5;
