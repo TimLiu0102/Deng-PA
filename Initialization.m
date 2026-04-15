@@ -56,23 +56,17 @@ y_star = zeros(K, N, M);   % y_star(k,n,m)
 
 for k = 1:K
     qk = scene.user_pos(:,k);
-    xk = qk(1); yk = qk(2); zk = qk(3);
+    yk = qk(2);
 
     for n = 1:N
-        A_kn = (xk - scene.xW(n))^2 + (zk - params.d)^2;
-        den = (2*log(params.alphaL))^2 - params.alphaW^2;
-        gamma_star = sqrt(A_kn * params.alphaW^2 / den);
-
         for m = 1:M
-            y_star(k,n,m) = yk - gamma_star;
+            y_star(k,n,m) = yk;
             p_star = [scene.xW(n); y_star(k,n,m); params.d];
             d_star = norm(qk - p_star);
 
-            h_abs = sqrt(1/M) ...
-                * exp(-(params.alphaW/2) * y_star(k,n,m)) ...
-                * (params.alphaL^d_star) ...
-                * (params.lambda * params.n_refr * params.v * sqrt(2*params.a*params.b)) ...
-                  / (2 * d_star);
+            g_abs = sqrt(1/M) * exp(-(params.alphaW/2) * y_star(k,n,m));
+            h_tilde_abs = params.eta / d_star;
+            h_abs = g_abs * h_tilde_abs;
 
             col = (n-1)*M + m;
             Gpot(k,col) = h_abs;
@@ -95,6 +89,10 @@ function y_ref = build_reference_positions(params)
 % 对应论文参考位置 y_ref_{n,m}
 N = params.N; M = params.M;
 y_ref = zeros(N,M);
+if M == 1
+    y_ref(:,1) = params.Dy / 2;
+    return;
+end
 for n = 1:N
     for m = 1:M
         y_ref(n,m) = (m-1)*params.Delta + ((m-1)/(M-1))*(params.Dy - (M-1)*params.Delta);
@@ -206,24 +204,10 @@ end
 end
 
 function [theta, phi] = build_initial_angles(C, matching, X, scene, params)
-% 对应论文：匹配PA指向其主关联用户；未匹配默认(theta,phi)=(pi,0)
+% 占位角度初始化：固定(theta,phi)=(pi,0)
 N = params.N; M = params.M;
 theta = pi * ones(N,M);
 phi = zeros(N,M);
-
-for r = 1:size(matching.pair_table,1)
-    ic = matching.pair_table(r,1);
-    n = matching.pair_table(r,2);
-    m = matching.pair_table(r,3);
-    k = C(ic);
-
-    qk = scene.user_pos(:,k);
-    pnm0 = [scene.xW(n); X(n,m); params.d];
-    v = qk - pnm0;
-    [th, ph] = compute_angle_from_vector(v);
-    theta(n,m) = th;
-    phi(n,m) = ph;
-end
 end
 
 function [theta, phi] = compute_angle_from_vector(v)
