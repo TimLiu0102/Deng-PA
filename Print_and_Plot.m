@@ -173,6 +173,52 @@ if has_init_X && isfield(state,'X') && isfield(scene,'xW')
     hold off;
 end
 
+%% ======================== 图3B：每轮 X 更新量 ========================
+if isfield(history,'X_cells') && ~isempty(history.X_cells) && isfield(history,'X0')
+    T = numel(history.X_cells);
+    deltaX = zeros(T,1);
+    for t = 1:T
+        X_now = history.X_cells{t};
+        if t == 1
+            X_prev = history.X0;
+        else
+            X_prev = history.X_cells{t-1};
+        end
+        deltaX(t) = norm(X_now - X_prev, 'fro');
+    end
+
+    figure;
+    plot(1:T, deltaX, '-o');
+    xlabel('外层迭代轮次');
+    ylabel('||X^{(t)} - X^{(t-1)}||_F');
+    title('每轮 X 更新量');
+    grid on;
+end
+
+%% ======================== 图3C：各 PA 位置随迭代变化轨迹 ========================
+if isfield(history,'X_cells') && ~isempty(history.X_cells) && isfield(history,'X0')
+    T = numel(history.X_cells);
+    [N, M] = size(history.X0);
+
+    figure;
+    hold on;
+    for n = 1:N
+        for m = 1:M
+            traj = zeros(T+1,1);
+            traj(1) = history.X0(n,m);
+            for t = 1:T
+                traj(t+1) = history.X_cells{t}(n,m);
+            end
+            plot(0:T, traj, '-o');
+        end
+    end
+    xlabel('外层迭代轮次');
+    ylabel('PA y 方向位置');
+    title('各 PA 位置随迭代变化轨迹');
+    grid on;
+    hold off;
+end
+
 %% ======================== 图4：最终角度分布 ========================
 if isfield(state,'theta')
     theta_vec = state.theta(:);

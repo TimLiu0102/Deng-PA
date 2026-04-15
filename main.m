@@ -77,13 +77,10 @@ rng(params.seed);
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
-run_id = datestr(now, 'yyyymmdd_HHMMSSFFF');
 
 %% 第4部分：初始化
 state = Initialization(params, scene, model);
 % state = Initialization_ra(params, scene, model);
-state.run_id = run_id;
-state.ao_w_call_id = 0;
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
@@ -126,13 +123,8 @@ for t = 1:params.T_max
     state.t = t;
 
     % 1) 更新 W
-    state.ao_w_call_id = state.ao_w_call_id + 1;
-    fprintf('\n[main] run=%s, t=%d, ao_w_call=%d, before AO_W, R_old=%.10f\n', ...
-        state.run_id, t, state.ao_w_call_id, R_old);
     state.W = AO_W(params, scene, model, state);
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
-    fprintf('[main] run=%s, t=%d, ao_w_call=%d, after AO_W, R_after_W=%.10f\n', ...
-        state.run_id, t, state.ao_w_call_id, R_after_W);
 
     % 2) 更新角度
     [state.theta, state.phi] = AO_angle(params, scene, model, state);
