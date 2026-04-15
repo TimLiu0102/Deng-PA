@@ -29,7 +29,7 @@ for it = 1:params.I_X
     % 这里对应论文中通过数值微分近似位置变量梯度
     g_vec = numerical_gradient_position(n, x_cur, X_cur, params, scene, state);
 
-    % two-loop recursion 计算 quasi-Newton 方向 d = -H_k g_k
+    % two-loop recursion 计算 quasi-Newton ascent 方向 d = H_k g_k
     d_vec = compute_lbfgs_direction(g_vec, s_hist, y_hist);
 
     % 回溯线搜索：X_trial = Projection(X + alpha*d)，以真实sum rate是否提升为准
@@ -87,7 +87,7 @@ end
 function d = compute_lbfgs_direction(g, s_hist, y_hist)
 % L-BFGS two-loop recursion：用有限记忆历史近似逆Hessian作用
 % s_k = x_{k+1}-x_k, y_k = g_{k+1}-g_k
-% 算法含义：不显式构造Hessian，而是由历史曲率信息近似 d = -H_k g_k
+% 算法含义：不显式构造Hessian，而是由历史曲率信息近似 d = H_k g_k（ascent direction）
 k = size(s_hist,2);
 q = g;
 
@@ -113,7 +113,7 @@ for i = 1:k
     r = r + s_hist(:,i) * (alpha(i) - beta);
 end
 
-d = -r;
+d = r;
 end
 
 function [xbar, fbar] = line_search_position(n, x_n, d, X_ref, params, scene, state, f0)
