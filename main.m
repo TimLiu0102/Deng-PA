@@ -33,14 +33,14 @@ params.n_refr = 1.5;
 % 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
 params.eta = 1.0;
 params.P_max = 1.0;
-params.sigma2 = 5e-9;
+params.sigma2 = 1e-2;
 
 % 4) 初始化参数
-params.lambda_mov = 0.05;
+params.lambda_mov = 0.01;
 
 % 5) WMMSE 参数
 params.I_W = 40;
-params.eps_W = 1e-4;
+params.eps_W = 1e-3;
 
 % 6) 角度更新参数
 params.I_theta = 6;
@@ -55,7 +55,7 @@ params.step_fd = 1e-3;
 params.line_search_alpha0 = 0.5;
 params.line_search_beta = 0.5;
 params.line_search_max_iter = 8;
-params.eps_X = 1e-5;
+params.eps_X = 1e-4;
 params.I_X = 6;
 params.lbfgs_mem = 5;
 
@@ -63,12 +63,12 @@ params.lbfgs_mem = 5;
 params.T_S = 2;
 params.L_in = 2;
 params.L_out = 4;
-params.eps_S = 1e-5;
+params.eps_S = 1e-4;
 params.max_swaps = 1;
 
 % 9) 外层停止参数
 params.T_max = 30;
-params.eps_outer = 1e-4;
+params.eps_outer = 1e-3;
 
 % 10) 随机种子
 params.seed = 7;
