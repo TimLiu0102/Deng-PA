@@ -27,8 +27,12 @@ for it = 1:max_round
 
     M = size(X_cur,2);
     for m = 1:M
-        x_best = X_cur(n,m);
-        R_best = -inf;
+        x_cur_m = X_cur(n,m);
+        [R_cur, ~] = evaluate_position_candidate_ex(n, m, x_cur_m, X_cur, params, scene, state);
+
+        % 当前点作为候选基准，若离散网格中不存在更优点，则保持当前位置不变
+        x_best = x_cur_m;
+        R_best = R_cur;
 
         for g = 1:numel(grid)
             x_try = grid(g);
