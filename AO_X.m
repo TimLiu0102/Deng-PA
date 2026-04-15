@@ -1,4 +1,4 @@
-function X_new = AO_X(params, scene, model, state)
+function [X_new, DEBUG_X_info] = AO_X(params, scene, model, state)
 % AO_X：固定 (S,W,theta,phi) 后，按波导逐条更新位置 X
 
 if nargin < 3
@@ -8,18 +8,36 @@ end
 X_new = state.X;
 N = size(X_new,1);
 
+%% ======================== DEBUG_X START ========================
+DEBUG_X_info = struct();
+DEBUG_X_info.DEBUG_X_waveguides = cell(N,1);
+%% ======================== DEBUG_X END ==========================
+
 % 逐条波导更新，不并行
 for n = 1:N
-    X_new = update_single_waveguide(n, X_new, params, scene, state);
+    [X_new, DEBUG_X_waveguide] = update_single_waveguide(n, X_new, params, scene, state);
+
+    %% ======================== DEBUG_X START ========================
+    DEBUG_X_info.DEBUG_X_waveguides{n,1} = DEBUG_X_waveguide;
+    %% ======================== DEBUG_X END ==========================
 end
 
 end
 
 %% ======================== 内部子函数 ========================
-function X_cur = update_single_waveguide(n, X_cur, params, scene, state)
+function [X_cur, DEBUG_X_waveguide] = update_single_waveguide(n, X_cur, params, scene, state)
 % 第n条波导的位置子问题更新（数值梯度 + L-BFGS方向 + 线搜索 + 投影）
 x_cur = X_cur(n,:).';
 R_old = local_objective_fn(n, x_cur, X_cur, params, scene, state);
+
+%% ======================== DEBUG_X START ========================
+DEBUG_X_waveguide = struct();
+DEBUG_X_waveguide.DEBUG_X_iters = cell(params.I_X,1);
+DEBUG_X_waveguide.DEBUG_X_g_vec = cell(params.I_X,1);
+DEBUG_X_waveguide.DEBUG_X_d_vec = cell(params.I_X,1);
+DEBUG_X_waveguide.DEBUG_X_R_old = nan(params.I_X,1);
+DEBUG_X_waveguide.DEBUG_X_R_trial = nan(params.I_X,1);
+%% ======================== DEBUG_X END ==========================
 
 % L-BFGS有限记忆历史：s_k = x_{k+1}-x_k, y_k = g_{k+1}-g_k
 s_hist = [];
@@ -33,7 +51,15 @@ for it = 1:params.I_X
     d_vec = compute_lbfgs_direction(g_vec, s_hist, y_hist);
 
     % 回溯线搜索：X_trial = Projection(X + alpha*d)，以真实sum rate是否提升为准
-    [x_trial, R_trial] = line_search_position(n, x_cur, d_vec, X_cur, params, scene, state, R_old);
+    [x_trial, R_trial, DEBUG_X_linesearch] = line_search_position(n, x_cur, d_vec, X_cur, params, scene, state, R_old);
+
+    %% ======================== DEBUG_X START ========================
+    DEBUG_X_waveguide.DEBUG_X_iters{it,1} = DEBUG_X_linesearch;
+    DEBUG_X_waveguide.DEBUG_X_g_vec{it,1} = g_vec;
+    DEBUG_X_waveguide.DEBUG_X_d_vec{it,1} = d_vec;
+    DEBUG_X_waveguide.DEBUG_X_R_old(it,1) = R_old;
+    DEBUG_X_waveguide.DEBUG_X_R_trial(it,1) = R_trial;
+    %% ======================== DEBUG_X END ==========================
 
     % 对应论文中位置块停止条件：提升小于 eps_X 则停止
     if (R_trial - R_old) < params.eps_X
@@ -116,17 +142,42 @@ end
 d = r;
 end
 
-function [xbar, fbar] = line_search_position(n, x_n, d, X_ref, params, scene, state, f0)
+function [xbar, fbar, DEBUG_X_linesearch] = line_search_position(n, x_n, d, X_ref, params, scene, state, f0)
 % 局部线搜索：alpha从alpha0开始，按beta回缩；每个试探点先投影再验收
 alpha = params.line_search_alpha0;
 
 xbar = x_n;
 fbar = f0;
+
+%% ======================== DEBUG_X START ========================
+L = params.line_search_max_iter;
+M = numel(x_n);
+DEBUG_X_linesearch = struct();
+DEBUG_X_linesearch.DEBUG_X_alpha = nan(L,1);
+DEBUG_X_linesearch.DEBUG_X_x_raw = nan(M,L);
+DEBUG_X_linesearch.DEBUG_X_x_proj = nan(M,L);
+DEBUG_X_linesearch.DEBUG_X_f_try = nan(L,1);
+DEBUG_X_linesearch.DEBUG_X_delta_f = nan(L,1);
+DEBUG_X_linesearch.DEBUG_X_accepted_step = nan(L,1);
+DEBUG_X_linesearch.DEBUG_X_x_start = x_n;
+DEBUG_X_linesearch.DEBUG_X_f0 = f0;
+%% ======================== DEBUG_X END ==========================
+
 for t = 1:params.line_search_max_iter
-    x_try = x_n + alpha * d;
-    x_try = Constraint_Checker('project_position', params, x_try);
+    x_try_raw = x_n + alpha * d;
+    x_try = Constraint_Checker('project_position', params, x_try_raw);
 
     f_try = local_objective_fn(n, x_try, X_ref, params, scene, state);
+
+    %% ======================== DEBUG_X START ========================
+    DEBUG_X_linesearch.DEBUG_X_alpha(t,1) = alpha;
+    DEBUG_X_linesearch.DEBUG_X_x_raw(:,t) = x_try_raw;
+    DEBUG_X_linesearch.DEBUG_X_x_proj(:,t) = x_try;
+    DEBUG_X_linesearch.DEBUG_X_f_try(t,1) = f_try;
+    DEBUG_X_linesearch.DEBUG_X_delta_f(t,1) = f_try - f0;
+    DEBUG_X_linesearch.DEBUG_X_accepted_step(t,1) = double(f_try > f0);
+    %% ======================== DEBUG_X END ==========================
+
     if f_try > f0
         xbar = x_try;
         fbar = f_try;
