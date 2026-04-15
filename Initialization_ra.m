@@ -15,9 +15,15 @@ S_rand = randperm(numel(S_all), K_serv);
 state.S = S_all(S_rand);
 state.S = state.S(:).';
 
-% 2) 初始位置矩阵：每条波导上等间隔分布
-x_row = linspace(0, params.Dy, M);
-state.X = repmat(x_row, N, 1);
+% 2) 初始位置矩阵：每条波导独立随机生成可行位置
+span = params.Dy - (M-1)*params.Delta;
+state.X = zeros(N, M);
+for n = 1:N
+    u = sort(rand(1, M));
+    base = (0:M-1) * params.Delta;
+    x_row = base + span * u;
+    state.X(n,:) = x_row;
+end
 
 % 3) 初始角度：统一竖直朝下
 state.theta = pi * ones(N, M);

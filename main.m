@@ -79,8 +79,16 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
+% ======================== 初始化方案切换（临时测试） ========================
+% 原始论文初始化
+% state = Initialization(params, scene, model);
+%
+% 随机/默认初始化
 % state = Initialization_ra(params, scene, model);
+%
+% 仅随机化X初始化：保留原始S、theta、phi，只替换X并重算W
+state = Initialization_raX(params, scene, model);
+% =========================================================================
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
@@ -117,18 +125,30 @@ history.phi_cells = {};
 % 交换标记历史（保留原有语义：首个元素对应初始化）
 history.swap_flag = false;
 
+%% ======================== DEBUG_X_ONLY START ========================
+% 临时调试：冻结 W / angle / S，只测试 X 模块的单独更新能力
+%% ======================== DEBUG_X_ONLY END ==========================
+
 %% 第6部分：外层交替优化主循环（固定顺序）
 for t = 1:params.T_max
     % 当前外层迭代编号，供 AO_S 周期触发判断
     state.t = t;
 
     % 1) 更新 W
-    state.W = AO_W(params, scene, model, state);
+    % state.W = AO_W(params, scene, model, state);
+    %% ======================== DEBUG_X_ONLY START ========================
+    % 这里是冻结 W 的临时代码，后续可直接删除恢复原始联合优化
+    % 保持 state.W 不变
+    %% ======================== DEBUG_X_ONLY END ==========================
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
     % 2) 更新角度
-    [state.theta, state.phi] = AO_angle(params, scene, model, state);
+    % [state.theta, state.phi] = AO_angle(params, scene, model, state);
     % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
+    %% ======================== DEBUG_X_ONLY START ========================
+    % 这里是冻结角度的临时代码，后续可直接删除恢复原始联合优化
+    % 保持 state.theta / state.phi 不变
+    %% ======================== DEBUG_X_ONLY END ==========================
     R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
@@ -137,8 +157,13 @@ for t = 1:params.T_max
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
-    [state.S, state.swap_flag] = AO_S(params, scene, model, state);
+    % [state.S, state.swap_flag] = AO_S(params, scene, model, state);
     % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
+    %% ======================== DEBUG_X_ONLY START ========================
+    % 这里是冻结 S 的临时代码，后续可直接删除恢复原始联合优化
+    % 保持 state.S 不变，并显式关闭 swap 标记
+    state.swap_flag = false;
+    %% ======================== DEBUG_X_ONLY END ==========================
     R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
     % 5) 保存每轮四块更新后的中间 sum rate
