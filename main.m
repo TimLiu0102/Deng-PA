@@ -52,9 +52,14 @@ params.eps_theta = 1e-5;
 
 % 7) 位置更新参数
 params.step_fd = 1e-3;
-params.line_search_alpha0 = 0.5;
+% params.line_search_alpha0 = 0.5;
 params.line_search_beta = 0.5;
-params.line_search_max_iter = 8;
+% params.line_search_max_iter = 8;
+% ======================== DEBUG_PARAM_X START ========================
+% X-only 参数对比测试：只调整 line search 初始步长和最大回溯次数
+params.line_search_alpha0 = 0.2;
+params.line_search_max_iter = 12;
+% ========================= DEBUG_PARAM_X END =========================
 params.eps_X = 1e-5;
 params.I_X = 6;
 params.lbfgs_mem = 5;
@@ -208,6 +213,11 @@ result.state = state;
 result.history = history;
 result.scene = scene;
 result.model = model;
+
+% ======================== DEBUG_PARAM_X START ========================
+fprintf('DEBUG_PARAM_X: line_search_alpha0 = %.6f\n', params.line_search_alpha0);
+fprintf('DEBUG_PARAM_X: line_search_max_iter = %d\n', params.line_search_max_iter);
+% ========================= DEBUG_PARAM_X END =========================
 
 Print_and_Plot(params, scene, model, result);
 
