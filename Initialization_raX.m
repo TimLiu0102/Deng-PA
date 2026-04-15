@@ -21,9 +21,54 @@ for n = 1:N
     state.X(n,:) = x_row;
 end
 
-% 4) 基于新的(S, X, theta, phi)重算初始预编码W
+% 4) 基于原始匹配关系与新X重算初始角度
+[state.theta, state.phi] = rebuild_initial_angles_from_matching(state, scene, params);
+
+% 5) 基于新的(S, X, theta, phi)重算初始预编码W
 state.W = build_initial_precoder(params, scene, state);
 
+end
+
+function [theta, phi] = rebuild_initial_angles_from_matching(state, scene, params)
+% 按原始Initialization语义：匹配PA指向主关联用户，未匹配默认(theta,phi)=(pi,0)
+N = params.N;
+M = params.M;
+
+theta = pi * ones(N,M);
+phi = zeros(N,M);
+for r = 1:size(state.matching.pair_table,1)
+    ic = state.matching.pair_table(r,1);
+    n = state.matching.pair_table(r,2);
+    m = state.matching.pair_table(r,3);
+    k = state.C(ic);
+
+    qk = scene.user_pos(:,k);
+    p_nm = [scene.xW(n); state.X(n,m); params.d];
+    v = qk - p_nm;
+    [th, ph] = compute_angle_from_vector(v);
+    theta(n,m) = th;
+    phi(n,m) = ph;
+end
+end
+
+function [theta, phi] = compute_angle_from_vector(v)
+% 几何方向角：与后续Channel_model坐标变换约定一致
+r = norm(v);
+if r < 1e-12
+    theta = pi;
+    phi = 0;
+    return;
+end
+
+theta = acos(v(3)/r);
+theta = min(max(theta, pi/2), pi);
+phi = atan2(v(2), v(1));
+if phi <= -pi
+    phi = phi + 2*pi;
+end
+if phi > pi
+    phi = phi - 2*pi;
+end
 end
 
 function W0 = build_initial_precoder(params, scene, state)
