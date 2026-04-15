@@ -139,7 +139,7 @@ for t = 1:params.T_max
     state.t = t;
 
     % 1) 更新 W
-    % state.W = AO_W(params, scene, model, state);
+    state.W = AO_W(params, scene, model, state);
     %% ======================== DEBUG_X_ONLY START ========================
     % 这里是冻结 W 的临时代码，后续可直接删除恢复原始联合优化
     % 保持 state.W 不变
@@ -147,7 +147,7 @@ for t = 1:params.T_max
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
     % 2) 更新角度
-    % [state.theta, state.phi] = AO_angle(params, scene, model, state);
+    [state.theta, state.phi] = AO_angle(params, scene, model, state);
     % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
     %% ======================== DEBUG_X_ONLY START ========================
     % 这里是冻结角度的临时代码，后续可直接删除恢复原始联合优化
@@ -161,12 +161,12 @@ for t = 1:params.T_max
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
-    % [state.S, state.swap_flag] = AO_S(params, scene, model, state);
+    [state.S, state.swap_flag] = AO_S(params, scene, model, state);
     % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
     %% ======================== DEBUG_X_ONLY START ========================
     % 这里是冻结 S 的临时代码，后续可直接删除恢复原始联合优化
     % 保持 state.S 不变，并显式关闭 swap 标记
-    state.swap_flag = false;
+    % state.swap_flag = false;
     %% ======================== DEBUG_X_ONLY END ==========================
     R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
