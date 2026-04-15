@@ -365,103 +365,203 @@ end
 %% ======================== DEBUG_X START ========================
 if isfield(history,'DEBUG_X_cells') && ~isempty(history.DEBUG_X_cells)
     DEBUG_X_cells = history.DEBUG_X_cells;
-    T = numel(DEBUG_X_cells);
-    L = params.line_search_max_iter;
 
-    DEBUG_X_x_proj_all = [];
-    DEBUG_X_x_raw_all = [];
-    DEBUG_X_delta_f_all = [];
+    is_gradient_mode = isfield(history,'X_update_mode') && strcmp(history.X_update_mode,'gradient');
+    is_exhaustive_mode = isfield(history,'X_update_mode') && strcmp(history.X_update_mode,'exhaustive');
 
-    for t = 1:T
-        DEBUG_X_x_proj_t = nan(0, L);
-        DEBUG_X_x_raw_t = nan(0, L);
-        DEBUG_X_delta_f_t = nan(L,1);
+    if is_gradient_mode
+        T = numel(DEBUG_X_cells);
+        L = params.line_search_max_iter;
 
-        DEBUG_X_t = DEBUG_X_cells{t};
+        DEBUG_X_x_proj_all = [];
+        DEBUG_X_x_raw_all = [];
+        DEBUG_X_delta_f_all = [];
+
+        for t = 1:T
+            DEBUG_X_x_proj_t = nan(0, L);
+            DEBUG_X_x_raw_t = nan(0, L);
+            DEBUG_X_delta_f_t = nan(L,1);
+
+            DEBUG_X_t = DEBUG_X_cells{t};
+            if isstruct(DEBUG_X_t) && isfield(DEBUG_X_t,'DEBUG_X_waveguides') && ~isempty(DEBUG_X_t.DEBUG_X_waveguides)
+                DEBUG_X_wg1 = DEBUG_X_t.DEBUG_X_waveguides{1};
+                if isstruct(DEBUG_X_wg1) && isfield(DEBUG_X_wg1,'DEBUG_X_iters') && ~isempty(DEBUG_X_wg1.DEBUG_X_iters)
+                    DEBUG_X_it1 = DEBUG_X_wg1.DEBUG_X_iters{1};
+                    if isstruct(DEBUG_X_it1)
+                        if isfield(DEBUG_X_it1,'DEBUG_X_x_proj') && ~isempty(DEBUG_X_it1.DEBUG_X_x_proj)
+                            DEBUG_X_x_proj_t = DEBUG_X_it1.DEBUG_X_x_proj;
+                        end
+                        if isfield(DEBUG_X_it1,'DEBUG_X_x_raw') && ~isempty(DEBUG_X_it1.DEBUG_X_x_raw)
+                            DEBUG_X_x_raw_t = DEBUG_X_it1.DEBUG_X_x_raw;
+                        end
+                        if isfield(DEBUG_X_it1,'DEBUG_X_delta_f') && ~isempty(DEBUG_X_it1.DEBUG_X_delta_f)
+                            DEBUG_X_delta_f_t = DEBUG_X_it1.DEBUG_X_delta_f(:);
+                        end
+                    end
+                end
+            end
+
+            if isempty(DEBUG_X_x_proj_all)
+                DEBUG_X_M = size(DEBUG_X_x_proj_t,1);
+                if DEBUG_X_M == 0
+                    DEBUG_X_M = size(DEBUG_X_x_raw_t,1);
+                end
+                if DEBUG_X_M == 0
+                    DEBUG_X_M = params.M;
+                end
+                DEBUG_X_x_proj_all = nan(T*L, DEBUG_X_M);
+                DEBUG_X_x_raw_all = nan(T*L, DEBUG_X_M);
+                DEBUG_X_delta_f_all = nan(T*L, 1);
+            end
+
+            DEBUG_X_idx = (t-1)*L + (1:L);
+            if ~isempty(DEBUG_X_x_proj_t) && size(DEBUG_X_x_proj_t,2) == L
+                DEBUG_X_x_proj_all(DEBUG_X_idx,1:size(DEBUG_X_x_proj_t,1)) = DEBUG_X_x_proj_t.';
+            end
+            if ~isempty(DEBUG_X_x_raw_t) && size(DEBUG_X_x_raw_t,2) == L
+                DEBUG_X_x_raw_all(DEBUG_X_idx,1:size(DEBUG_X_x_raw_t,1)) = DEBUG_X_x_raw_t.';
+            end
+            if ~isempty(DEBUG_X_delta_f_t) && numel(DEBUG_X_delta_f_t) >= L
+                DEBUG_X_delta_f_all(DEBUG_X_idx,1) = DEBUG_X_delta_f_t(1:L);
+            elseif ~isempty(DEBUG_X_delta_f_t)
+                DEBUG_X_delta_f_all(DEBUG_X_idx(1:numel(DEBUG_X_delta_f_t)),1) = DEBUG_X_delta_f_t;
+            end
+        end
+
+        if ~isempty(DEBUG_X_x_proj_all)
+            DEBUG_X_step_all = 1:(T*L);
+
+            figure;
+            plot(DEBUG_X_step_all, DEBUG_X_x_proj_all, '-o');
+            hold on;
+            for t = 1:(T-1)
+                xline(t*L + 0.5, '--k');
+            end
+            hold off;
+            xlabel('全局步编号');
+            ylabel('投影后候选位置');
+            title('DEBUG_X：各外层轮次中 8 次投影后候选位置（第1条波导，第1次位置内迭代）');
+            grid on;
+
+            figure;
+            plot(DEBUG_X_step_all, DEBUG_X_x_raw_all, '-o');
+            hold on;
+            for t = 1:(T-1)
+                xline(t*L + 0.5, '--k');
+            end
+            hold off;
+            xlabel('全局步编号');
+            ylabel('投影前候选位置');
+            title('DEBUG_X：各外层轮次中 8 次投影前候选位置（第1条波导，第1次位置内迭代）');
+            grid on;
+
+            figure;
+            stem(DEBUG_X_step_all, DEBUG_X_delta_f_all, 'filled');
+            hold on;
+            yline(0, '--k');
+            for t = 1:(T-1)
+                xline(t*L + 0.5, '--k');
+            end
+            hold off;
+            xlabel('全局步编号');
+            ylabel('候选点目标增量');
+            title('DEBUG_X：各外层轮次中 8 次候选点目标增量（第1条波导，第1次位置内迭代）');
+            grid on;
+        end
+    elseif is_exhaustive_mode
+        DEBUG_X_t = DEBUG_X_cells{1};
         if isstruct(DEBUG_X_t) && isfield(DEBUG_X_t,'DEBUG_X_waveguides') && ~isempty(DEBUG_X_t.DEBUG_X_waveguides)
             DEBUG_X_wg1 = DEBUG_X_t.DEBUG_X_waveguides{1};
             if isstruct(DEBUG_X_wg1) && isfield(DEBUG_X_wg1,'DEBUG_X_iters') && ~isempty(DEBUG_X_wg1.DEBUG_X_iters)
                 DEBUG_X_it1 = DEBUG_X_wg1.DEBUG_X_iters{1};
                 if isstruct(DEBUG_X_it1)
-                    if isfield(DEBUG_X_it1,'DEBUG_X_x_proj') && ~isempty(DEBUG_X_it1.DEBUG_X_x_proj)
-                        DEBUG_X_x_proj_t = DEBUG_X_it1.DEBUG_X_x_proj;
+                    if isfield(DEBUG_X_it1,'DEBUG_X_pa_cells') && ~isempty(DEBUG_X_it1.DEBUG_X_pa_cells)
+                        DEBUG_X_pa_cells = DEBUG_X_it1.DEBUG_X_pa_cells;
+                        M = numel(DEBUG_X_pa_cells);
+
+                        figure;
+                        hold on;
+                        for m = 1:M
+                            DEBUG_X_pa = DEBUG_X_pa_cells{m};
+                            if ~isstruct(DEBUG_X_pa) || ~isfield(DEBUG_X_pa,'DEBUG_X_grid_delta_f') || isempty(DEBUG_X_pa.DEBUG_X_grid_delta_f)
+                                continue;
+                            end
+                            y_vals = DEBUG_X_pa.DEBUG_X_grid_delta_f(:);
+                            x_idx = (1:numel(y_vals)).';
+                            h = plot(x_idx, y_vals, '-o');
+
+                            if isfield(DEBUG_X_pa,'DEBUG_X_grid_xm_proj') && isfield(DEBUG_X_pa,'DEBUG_X_x_cur') ...
+                                    && ~isempty(DEBUG_X_pa.DEBUG_X_grid_xm_proj)
+                                [~, idx_cur] = min(abs(DEBUG_X_pa.DEBUG_X_grid_xm_proj(:) - DEBUG_X_pa.DEBUG_X_x_cur));
+                                plot(idx_cur, y_vals(idx_cur), 's', 'MarkerSize', 8, ...
+                                    'Color', h.Color, 'MarkerFaceColor', 'w', 'LineWidth', 1.2);
+                            end
+
+                            if isfield(DEBUG_X_pa,'DEBUG_X_best_grid_index') && ~isempty(DEBUG_X_pa.DEBUG_X_best_grid_index)
+                                idx_best = DEBUG_X_pa.DEBUG_X_best_grid_index;
+                                if idx_best>=1 && idx_best<=numel(y_vals)
+                                    plot(idx_best, y_vals(idx_best), '^', 'MarkerSize', 8, ...
+                                        'Color', h.Color, 'MarkerFaceColor', h.Color, 'LineWidth', 1.2);
+                                end
+                            end
+                        end
+                        hold off;
+                        xlabel('网格编号');
+                        ylabel('候选点目标增量');
+                        title('穷搜法：第1条波导第1次位置内迭代各PA候选点目标增量');
+                        grid on;
+
+                        figure;
+                        hold on;
+                        for m = 1:M
+                            DEBUG_X_pa = DEBUG_X_pa_cells{m};
+                            if ~isstruct(DEBUG_X_pa) || ~isfield(DEBUG_X_pa,'DEBUG_X_grid_xm_proj') || isempty(DEBUG_X_pa.DEBUG_X_grid_xm_proj)
+                                continue;
+                            end
+                            y_vals = DEBUG_X_pa.DEBUG_X_grid_xm_proj(:);
+                            x_idx = (1:numel(y_vals)).';
+                            h = plot(x_idx, y_vals, '-o');
+
+                            if isfield(DEBUG_X_pa,'DEBUG_X_x_cur')
+                                [~, idx_cur] = min(abs(y_vals - DEBUG_X_pa.DEBUG_X_x_cur));
+                                plot(idx_cur, y_vals(idx_cur), 's', 'MarkerSize', 8, ...
+                                    'Color', h.Color, 'MarkerFaceColor', 'w', 'LineWidth', 1.2);
+                            end
+
+                            if isfield(DEBUG_X_pa,'DEBUG_X_best_grid_index') && ~isempty(DEBUG_X_pa.DEBUG_X_best_grid_index)
+                                idx_best = DEBUG_X_pa.DEBUG_X_best_grid_index;
+                                if idx_best>=1 && idx_best<=numel(y_vals)
+                                    plot(idx_best, y_vals(idx_best), '^', 'MarkerSize', 8, ...
+                                        'Color', h.Color, 'MarkerFaceColor', h.Color, 'LineWidth', 1.2);
+                                end
+                            end
+                        end
+                        hold off;
+                        xlabel('网格编号');
+                        ylabel('候选位置');
+                        title('穷搜法：第1条波导第1次位置内迭代各PA候选位置');
+                        grid on;
                     end
-                    if isfield(DEBUG_X_it1,'DEBUG_X_x_raw') && ~isempty(DEBUG_X_it1.DEBUG_X_x_raw)
-                        DEBUG_X_x_raw_t = DEBUG_X_it1.DEBUG_X_x_raw;
-                    end
-                    if isfield(DEBUG_X_it1,'DEBUG_X_delta_f') && ~isempty(DEBUG_X_it1.DEBUG_X_delta_f)
-                        DEBUG_X_delta_f_t = DEBUG_X_it1.DEBUG_X_delta_f(:);
+
+                    if isfield(DEBUG_X_it1,'DEBUG_X_waveguide_states') && ~isempty(DEBUG_X_it1.DEBUG_X_waveguide_states)
+                        states = DEBUG_X_it1.DEBUG_X_waveguide_states;
+                        [M, P] = size(states);
+                        stage = 0:(P-1);
+
+                        figure;
+                        hold on;
+                        for m = 1:M
+                            plot(stage, states(m,:), '-o');
+                        end
+                        hold off;
+                        xlabel('阶段编号');
+                        ylabel('PA y 方向位置');
+                        title('穷搜法：第1条波导第1次位置内迭代逐PA更新轨迹');
+                        grid on;
                     end
                 end
             end
         end
-
-        if isempty(DEBUG_X_x_proj_all)
-            DEBUG_X_M = size(DEBUG_X_x_proj_t,1);
-            if DEBUG_X_M == 0
-                DEBUG_X_M = size(DEBUG_X_x_raw_t,1);
-            end
-            if DEBUG_X_M == 0
-                DEBUG_X_M = params.M;
-            end
-            DEBUG_X_x_proj_all = nan(T*L, DEBUG_X_M);
-            DEBUG_X_x_raw_all = nan(T*L, DEBUG_X_M);
-            DEBUG_X_delta_f_all = nan(T*L, 1);
-        end
-
-        DEBUG_X_idx = (t-1)*L + (1:L);
-        if ~isempty(DEBUG_X_x_proj_t) && size(DEBUG_X_x_proj_t,2) == L
-            DEBUG_X_x_proj_all(DEBUG_X_idx,1:size(DEBUG_X_x_proj_t,1)) = DEBUG_X_x_proj_t.';
-        end
-        if ~isempty(DEBUG_X_x_raw_t) && size(DEBUG_X_x_raw_t,2) == L
-            DEBUG_X_x_raw_all(DEBUG_X_idx,1:size(DEBUG_X_x_raw_t,1)) = DEBUG_X_x_raw_t.';
-        end
-        if ~isempty(DEBUG_X_delta_f_t) && numel(DEBUG_X_delta_f_t) >= L
-            DEBUG_X_delta_f_all(DEBUG_X_idx,1) = DEBUG_X_delta_f_t(1:L);
-        elseif ~isempty(DEBUG_X_delta_f_t)
-            DEBUG_X_delta_f_all(DEBUG_X_idx(1:numel(DEBUG_X_delta_f_t)),1) = DEBUG_X_delta_f_t;
-        end
-    end
-
-    if ~isempty(DEBUG_X_x_proj_all)
-        DEBUG_X_step_all = 1:(T*L);
-
-        figure;
-        plot(DEBUG_X_step_all, DEBUG_X_x_proj_all, '-o');
-        hold on;
-        for t = 1:(T-1)
-            xline(t*L + 0.5, '--k');
-        end
-        hold off;
-        xlabel('全局步编号');
-        ylabel('投影后候选位置');
-        title('DEBUG_X：各外层轮次中 8 次投影后候选位置（第1条波导，第1次位置内迭代）');
-        grid on;
-
-        figure;
-        plot(DEBUG_X_step_all, DEBUG_X_x_raw_all, '-o');
-        hold on;
-        for t = 1:(T-1)
-            xline(t*L + 0.5, '--k');
-        end
-        hold off;
-        xlabel('全局步编号');
-        ylabel('投影前候选位置');
-        title('DEBUG_X：各外层轮次中 8 次投影前候选位置（第1条波导，第1次位置内迭代）');
-        grid on;
-
-        figure;
-        stem(DEBUG_X_step_all, DEBUG_X_delta_f_all, 'filled');
-        hold on;
-        yline(0, '--k');
-        for t = 1:(T-1)
-            xline(t*L + 0.5, '--k');
-        end
-        hold off;
-        xlabel('全局步编号');
-        ylabel('候选点目标增量');
-        title('DEBUG_X：各外层轮次中 8 次候选点目标增量（第1条波导，第1次位置内迭代）');
-        grid on;
     end
 end
 %% ======================== DEBUG_X END ==========================
