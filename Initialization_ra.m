@@ -1,5 +1,5 @@
 function state = Initialization_ra(params, scene, model)
-% Initialization_ra：随机/默认初始化，不使用论文候选池匹配初始化
+% Initialization_ra：全随机初始化，保持与现有 AO 流程兼容
 
 if nargin < 3
     model = struct(); %#ok<NASGU>
@@ -15,47 +15,35 @@ S_rand = randperm(numel(S_all), K_serv);
 state.S = S_all(S_rand);
 state.S = state.S(:).';
 
-% 2) 初始位置矩阵：每条波导上等间隔分布
-x_row = linspace(0, params.Dy, M);
-state.X = repmat(x_row, N, 1);
+% 2) 初始位置矩阵：每条波导随机生成并投影到可行域
+state.X = zeros(N, M);
+for n = 1:N
+    x_row = sort(rand(1, M) * params.Dy);
+    x_proj = Constraint_Checker('project_position', params, x_row(:));
+    state.X(n, :) = x_proj(:).';
+end
 
-% 3) 初始角度：统一竖直朝下
-state.theta = pi * ones(N, M);
-state.phi = zeros(N, M);
+% 3) 初始角度：在可行域内随机生成
+state.theta = pi/2 + (pi/2) * rand(N, M);
+state.phi = 2*pi*rand(N, M) - pi;
+state.phi(state.phi <= -pi) = pi;
 
-% 4) 初始预编码 W^(0)：MRT + 统一功率缩放
-state.W = build_initial_precoder(params, scene, state);
+% 4) 初始预编码 W^(0)：复随机 + 统一功率归一化
+W0 = randn(N*M, K_serv) + 1j * randn(N*M, K_serv);
+p = real(trace(W0 * W0'));
+if p > 0
+    W0 = W0 * sqrt(params.P_max / p);
+end
+state.W = W0;
 
-% 5) 兼容字段
-state.C = [];
-state.Emax = [];
+% 5) 与 AO_S 兼容字段
+state.C = 1:scene.K;
+state.Emax = ones(scene.K, 1);
+
+% 6) 其余兼容字段
 state.Gpot = [];
 state.matching = [];
 state.y_star = [];
 state.y_ref = [];
 
-end
-
-function W0 = build_initial_precoder(params, scene, state)
-% 显式构造 W^(0)：按当前服务用户复合信道做 MRT
-extra_ch = struct();
-extra_ch.use_all = false;
-ch_out = Channel_model('all_users', params, scene, state, extra_ch);
-H = ch_out.H;
-
-Nt = size(H,1);
-Kserv = size(H,2);
-W0 = zeros(Nt, Kserv);
-for k = 1:Kserv
-    hk = H(:,k);
-    nrm = norm(hk);
-    if nrm > 0
-        W0(:,k) = hk / nrm;
-    end
-end
-
-p = real(trace(W0*W0'));
-if p > params.P_max && p > 0
-    W0 = W0 * sqrt(params.P_max/p);
-end
 end
