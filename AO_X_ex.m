@@ -27,19 +27,29 @@ for it = 1:max_round
 
     M = size(X_cur,2);
     for m = 1:M
-        x_best = X_cur(n,m);
-        R_best = -inf;
+        % 先显式评估当前点，作为候选集合基准
+        x_now = X_cur(n,m);
+        [R_cur, ~] = evaluate_position_candidate_ex(n, m, x_now, X_cur, params, scene, state);
 
+        best_x = x_now;
+        best_R = R_cur;
+
+        % 再遍历离散网格候选点，统一按真实 sum rate 比较
         for g = 1:numel(grid)
             x_try = grid(g);
             [R_try, X_try] = evaluate_position_candidate_ex(n, m, x_try, X_cur, params, scene, state);
-            if R_try > R_best
-                R_best = R_try;
-                x_best = X_try(n,m);
+            if R_try > best_R
+                best_R = R_try;
+                best_x = X_try(n,m);
             end
         end
 
-        X_cur(n,m) = x_best;
+        % 非下降接受：只有不劣于当前点评价时才更新
+        if best_R >= R_cur
+            X_cur(n,m) = best_x;
+        else
+            X_cur(n,m) = x_now;
+        end
     end
 
     if isequal(X_cur(n,:), x_old_round)
