@@ -366,102 +366,181 @@ end
 if isfield(history,'DEBUG_X_cells') && ~isempty(history.DEBUG_X_cells)
     DEBUG_X_cells = history.DEBUG_X_cells;
     T = numel(DEBUG_X_cells);
-    L = params.line_search_max_iter;
 
-    DEBUG_X_x_proj_all = [];
-    DEBUG_X_x_raw_all = [];
-    DEBUG_X_delta_f_all = [];
+    if isfield(history,'X_update_mode') && ~isempty(history.X_update_mode)
+        X_update_mode = history.X_update_mode;
+    else
+        X_update_mode = 'gradient';
+    end
 
-    for t = 1:T
-        DEBUG_X_x_proj_t = nan(0, L);
-        DEBUG_X_x_raw_t = nan(0, L);
-        DEBUG_X_delta_f_t = nan(L,1);
+    if strcmp(X_update_mode, 'gradient')
+        L = params.line_search_max_iter;
 
-        DEBUG_X_t = DEBUG_X_cells{t};
-        if isstruct(DEBUG_X_t) && isfield(DEBUG_X_t,'DEBUG_X_waveguides') && ~isempty(DEBUG_X_t.DEBUG_X_waveguides)
-            DEBUG_X_wg1 = DEBUG_X_t.DEBUG_X_waveguides{1};
-            if isstruct(DEBUG_X_wg1) && isfield(DEBUG_X_wg1,'DEBUG_X_iters') && ~isempty(DEBUG_X_wg1.DEBUG_X_iters)
-                DEBUG_X_it1 = DEBUG_X_wg1.DEBUG_X_iters{1};
-                if isstruct(DEBUG_X_it1)
-                    if isfield(DEBUG_X_it1,'DEBUG_X_x_proj') && ~isempty(DEBUG_X_it1.DEBUG_X_x_proj)
-                        DEBUG_X_x_proj_t = DEBUG_X_it1.DEBUG_X_x_proj;
-                    end
-                    if isfield(DEBUG_X_it1,'DEBUG_X_x_raw') && ~isempty(DEBUG_X_it1.DEBUG_X_x_raw)
-                        DEBUG_X_x_raw_t = DEBUG_X_it1.DEBUG_X_x_raw;
-                    end
-                    if isfield(DEBUG_X_it1,'DEBUG_X_delta_f') && ~isempty(DEBUG_X_it1.DEBUG_X_delta_f)
-                        DEBUG_X_delta_f_t = DEBUG_X_it1.DEBUG_X_delta_f(:);
+        DEBUG_X_x_proj_all = [];
+        DEBUG_X_x_raw_all = [];
+        DEBUG_X_delta_f_all = [];
+
+        for t = 1:T
+            DEBUG_X_x_proj_t = nan(0, L);
+            DEBUG_X_x_raw_t = nan(0, L);
+            DEBUG_X_delta_f_t = nan(L,1);
+
+            DEBUG_X_t = DEBUG_X_cells{t};
+            if isstruct(DEBUG_X_t) && isfield(DEBUG_X_t,'DEBUG_X_waveguides') && ~isempty(DEBUG_X_t.DEBUG_X_waveguides)
+                DEBUG_X_wg1 = DEBUG_X_t.DEBUG_X_waveguides{1};
+                if isstruct(DEBUG_X_wg1) && isfield(DEBUG_X_wg1,'DEBUG_X_iters') && ~isempty(DEBUG_X_wg1.DEBUG_X_iters)
+                    DEBUG_X_it1 = DEBUG_X_wg1.DEBUG_X_iters{1};
+                    if isstruct(DEBUG_X_it1)
+                        if isfield(DEBUG_X_it1,'DEBUG_X_x_proj') && ~isempty(DEBUG_X_it1.DEBUG_X_x_proj)
+                            DEBUG_X_x_proj_t = DEBUG_X_it1.DEBUG_X_x_proj;
+                        end
+                        if isfield(DEBUG_X_it1,'DEBUG_X_x_raw') && ~isempty(DEBUG_X_it1.DEBUG_X_x_raw)
+                            DEBUG_X_x_raw_t = DEBUG_X_it1.DEBUG_X_x_raw;
+                        end
+                        if isfield(DEBUG_X_it1,'DEBUG_X_delta_f') && ~isempty(DEBUG_X_it1.DEBUG_X_delta_f)
+                            DEBUG_X_delta_f_t = DEBUG_X_it1.DEBUG_X_delta_f(:);
+                        end
                     end
                 end
             end
-        end
 
-        if isempty(DEBUG_X_x_proj_all)
-            DEBUG_X_M = size(DEBUG_X_x_proj_t,1);
-            if DEBUG_X_M == 0
-                DEBUG_X_M = size(DEBUG_X_x_raw_t,1);
+            if isempty(DEBUG_X_x_proj_all)
+                DEBUG_X_M = size(DEBUG_X_x_proj_t,1);
+                if DEBUG_X_M == 0
+                    DEBUG_X_M = size(DEBUG_X_x_raw_t,1);
+                end
+                if DEBUG_X_M == 0
+                    DEBUG_X_M = params.M;
+                end
+                DEBUG_X_x_proj_all = nan(T*L, DEBUG_X_M);
+                DEBUG_X_x_raw_all = nan(T*L, DEBUG_X_M);
+                DEBUG_X_delta_f_all = nan(T*L, 1);
             end
-            if DEBUG_X_M == 0
-                DEBUG_X_M = params.M;
+
+            DEBUG_X_idx = (t-1)*L + (1:L);
+            if ~isempty(DEBUG_X_x_proj_t) && size(DEBUG_X_x_proj_t,2) == L
+                DEBUG_X_x_proj_all(DEBUG_X_idx,1:size(DEBUG_X_x_proj_t,1)) = DEBUG_X_x_proj_t.';
             end
-            DEBUG_X_x_proj_all = nan(T*L, DEBUG_X_M);
-            DEBUG_X_x_raw_all = nan(T*L, DEBUG_X_M);
-            DEBUG_X_delta_f_all = nan(T*L, 1);
+            if ~isempty(DEBUG_X_x_raw_t) && size(DEBUG_X_x_raw_t,2) == L
+                DEBUG_X_x_raw_all(DEBUG_X_idx,1:size(DEBUG_X_x_raw_t,1)) = DEBUG_X_x_raw_t.';
+            end
+            if ~isempty(DEBUG_X_delta_f_t) && numel(DEBUG_X_delta_f_t) >= L
+                DEBUG_X_delta_f_all(DEBUG_X_idx,1) = DEBUG_X_delta_f_t(1:L);
+            elseif ~isempty(DEBUG_X_delta_f_t)
+                DEBUG_X_delta_f_all(DEBUG_X_idx(1:numel(DEBUG_X_delta_f_t)),1) = DEBUG_X_delta_f_t;
+            end
         end
 
-        DEBUG_X_idx = (t-1)*L + (1:L);
-        if ~isempty(DEBUG_X_x_proj_t) && size(DEBUG_X_x_proj_t,2) == L
-            DEBUG_X_x_proj_all(DEBUG_X_idx,1:size(DEBUG_X_x_proj_t,1)) = DEBUG_X_x_proj_t.';
-        end
-        if ~isempty(DEBUG_X_x_raw_t) && size(DEBUG_X_x_raw_t,2) == L
-            DEBUG_X_x_raw_all(DEBUG_X_idx,1:size(DEBUG_X_x_raw_t,1)) = DEBUG_X_x_raw_t.';
-        end
-        if ~isempty(DEBUG_X_delta_f_t) && numel(DEBUG_X_delta_f_t) >= L
-            DEBUG_X_delta_f_all(DEBUG_X_idx,1) = DEBUG_X_delta_f_t(1:L);
-        elseif ~isempty(DEBUG_X_delta_f_t)
-            DEBUG_X_delta_f_all(DEBUG_X_idx(1:numel(DEBUG_X_delta_f_t)),1) = DEBUG_X_delta_f_t;
-        end
-    end
+        if ~isempty(DEBUG_X_x_proj_all)
+            DEBUG_X_step_all = 1:(T*L);
 
-    if ~isempty(DEBUG_X_x_proj_all)
-        DEBUG_X_step_all = 1:(T*L);
+            figure;
+            plot(DEBUG_X_step_all, DEBUG_X_x_proj_all, '-o');
+            hold on;
+            for t = 1:(T-1)
+                xline(t*L + 0.5, '--k');
+            end
+            hold off;
+            xlabel('全局步编号');
+            ylabel('投影后候选位置');
+            title('DEBUG_X：各外层轮次中 8 次投影后候选位置（第1条波导，第1次位置内迭代）');
+            grid on;
 
-        figure;
-        plot(DEBUG_X_step_all, DEBUG_X_x_proj_all, '-o');
-        hold on;
-        for t = 1:(T-1)
-            xline(t*L + 0.5, '--k');
-        end
-        hold off;
-        xlabel('全局步编号');
-        ylabel('投影后候选位置');
-        title('DEBUG_X：各外层轮次中 8 次投影后候选位置（第1条波导，第1次位置内迭代）');
-        grid on;
+            figure;
+            plot(DEBUG_X_step_all, DEBUG_X_x_raw_all, '-o');
+            hold on;
+            for t = 1:(T-1)
+                xline(t*L + 0.5, '--k');
+            end
+            hold off;
+            xlabel('全局步编号');
+            ylabel('投影前候选位置');
+            title('DEBUG_X：各外层轮次中 8 次投影前候选位置（第1条波导，第1次位置内迭代）');
+            grid on;
 
-        figure;
-        plot(DEBUG_X_step_all, DEBUG_X_x_raw_all, '-o');
-        hold on;
-        for t = 1:(T-1)
-            xline(t*L + 0.5, '--k');
+            figure;
+            stem(DEBUG_X_step_all, DEBUG_X_delta_f_all, 'filled');
+            hold on;
+            yline(0, '--k');
+            for t = 1:(T-1)
+                xline(t*L + 0.5, '--k');
+            end
+            hold off;
+            xlabel('全局步编号');
+            ylabel('候选点目标增量');
+            title('DEBUG_X：各外层轮次中 8 次候选点目标增量（第1条波导，第1次位置内迭代）');
+            grid on;
         end
-        hold off;
-        xlabel('全局步编号');
-        ylabel('投影前候选位置');
-        title('DEBUG_X：各外层轮次中 8 次投影前候选位置（第1条波导，第1次位置内迭代）');
-        grid on;
 
-        figure;
-        stem(DEBUG_X_step_all, DEBUG_X_delta_f_all, 'filled');
-        hold on;
-        yline(0, '--k');
-        for t = 1:(T-1)
-            xline(t*L + 0.5, '--k');
+    elseif strcmp(X_update_mode, 'exhaustive')
+        DEBUG_X_t = [];
+        for t = 1:T
+            if isstruct(DEBUG_X_cells{t})
+                DEBUG_X_t = DEBUG_X_cells{t};
+                break;
+            end
         end
-        hold off;
-        xlabel('全局步编号');
-        ylabel('候选点目标增量');
-        title('DEBUG_X：各外层轮次中 8 次候选点目标增量（第1条波导，第1次位置内迭代）');
-        grid on;
+
+        if ~isempty(DEBUG_X_t) && isfield(DEBUG_X_t,'DEBUG_X_waveguides') && ~isempty(DEBUG_X_t.DEBUG_X_waveguides)
+            DEBUG_X_wg1 = DEBUG_X_t.DEBUG_X_waveguides{1};
+            if isstruct(DEBUG_X_wg1) && isfield(DEBUG_X_wg1,'DEBUG_X_iters') && ~isempty(DEBUG_X_wg1.DEBUG_X_iters)
+                DEBUG_X_it1 = DEBUG_X_wg1.DEBUG_X_iters{1};
+
+                if isstruct(DEBUG_X_it1) && isfield(DEBUG_X_it1,'DEBUG_X_pa_cells') && ~isempty(DEBUG_X_it1.DEBUG_X_pa_cells)
+                    DEBUG_X_pa_cells = DEBUG_X_it1.DEBUG_X_pa_cells;
+                    M = numel(DEBUG_X_pa_cells);
+
+                    figure;
+                    hold on;
+                    for m = 1:M
+                        DEBUG_X_pa_m = DEBUG_X_pa_cells{m};
+                        if ~isstruct(DEBUG_X_pa_m)
+                            continue;
+                        end
+
+                        if ~isfield(DEBUG_X_pa_m,'DEBUG_X_grid_delta_f') || isempty(DEBUG_X_pa_m.DEBUG_X_grid_delta_f)
+                            continue;
+                        end
+
+                        delta_f = DEBUG_X_pa_m.DEBUG_X_grid_delta_f(:);
+                        grid_idx = (1:numel(delta_f)).';
+                        plot(grid_idx, delta_f, '-o');
+
+                        if isfield(DEBUG_X_pa_m,'DEBUG_X_grid_xm_proj') && ~isempty(DEBUG_X_pa_m.DEBUG_X_grid_xm_proj) ...
+                                && isfield(DEBUG_X_pa_m,'DEBUG_X_x_cur')
+                            grid_vals = DEBUG_X_pa_m.DEBUG_X_grid_xm_proj(:);
+                            [~, cur_idx] = min(abs(grid_vals - DEBUG_X_pa_m.DEBUG_X_x_cur));
+                            plot(cur_idx, delta_f(cur_idx), 's', 'MarkerSize', 8, 'LineWidth', 1.2);
+                        end
+
+                        if isfield(DEBUG_X_pa_m,'DEBUG_X_best_grid_index') && ~isempty(DEBUG_X_pa_m.DEBUG_X_best_grid_index)
+                            best_idx = DEBUG_X_pa_m.DEBUG_X_best_grid_index;
+                            if best_idx >= 1 && best_idx <= numel(delta_f)
+                                plot(best_idx, delta_f(best_idx), '^', 'MarkerSize', 8, 'LineWidth', 1.2);
+                            end
+                        end
+                    end
+                    hold off;
+                    xlabel('网格编号');
+                    ylabel('候选点目标增量');
+                    title('穷搜法：第1条波导第1次位置内迭代各PA候选点目标增量');
+                    grid on;
+                end
+
+                if isstruct(DEBUG_X_it1) && isfield(DEBUG_X_it1,'DEBUG_X_waveguide_states') ...
+                        && ~isempty(DEBUG_X_it1.DEBUG_X_waveguide_states)
+                    DEBUG_X_waveguide_states = DEBUG_X_it1.DEBUG_X_waveguide_states;
+                    stage_idx = 0:(size(DEBUG_X_waveguide_states,2)-1);
+
+                    figure;
+                    plot(stage_idx, DEBUG_X_waveguide_states.', '-o');
+                    xlabel('阶段编号');
+                    ylabel('PA y 方向位置');
+                    title('穷搜法：第1条波导第1次位置内迭代逐PA更新轨迹');
+                    grid on;
+                end
+            end
+        end
     end
 end
 %% ======================== DEBUG_X END ==========================

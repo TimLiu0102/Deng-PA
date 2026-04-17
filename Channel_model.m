@@ -50,8 +50,65 @@ feed_pos = [xW; zeros(1,N); params.d*ones(1,N)]; % 3 x N
 
 if isfield(params,'user_x_rng'), xr = params.user_x_rng; else, xr = [0, params.Dx]; end
 if isfield(params,'user_y_rng'), yr = params.user_y_rng; else, yr = [0, params.Dy]; end
-xk = xr(1) + (xr(2)-xr(1))*rand(1,K);
-yk = yr(1) + (yr(2)-yr(1))*rand(1,K);
+
+% 用户分布模型（默认：均匀随机模型）
+if ~isfield(params,'user_distribution_model')
+    user_distribution_model = 'uniform_random';
+else
+    user_distribution_model = params.user_distribution_model;
+end
+
+switch lower(user_distribution_model)
+    case 'uniform_random'
+        % 均匀随机模型：x、y 在范围内均匀分布
+        xk = xr(1) + (xr(2)-xr(1))*rand(1,K);
+        yk = yr(1) + (yr(2)-yr(1))*rand(1,K);
+
+    case 'single_cluster'
+        % 单簇集中模型：围绕 cluster1_center 高斯分布
+        c1 = params.cluster1_center;
+        s1 = params.cluster1_sigma;
+        xk = c1(1) + s1(1) * randn(1,K);
+        yk = c1(2) + s1(2) * randn(1,K);
+        xk = min(max(xk, xr(1)), xr(2));
+        yk = min(max(yk, yr(1)), yr(2));
+
+    case 'double_cluster'
+        % 双簇分布模型：前半用户在 cluster2，后半用户在 cluster3
+        K1 = floor(K/2);
+        K2 = K - K1;
+
+        c2 = params.cluster2_center;
+        s2 = params.cluster2_sigma;
+        c3 = params.cluster3_center;
+        s3 = params.cluster3_sigma;
+
+        x1 = c2(1) + s2(1) * randn(1,K1);
+        y1 = c2(2) + s2(2) * randn(1,K1);
+        x2 = c3(1) + s3(1) * randn(1,K2);
+        y2 = c3(2) + s3(2) * randn(1,K2);
+
+        xk = [x1, x2];
+        yk = [y1, y2];
+        xk = min(max(xk, xr(1)), xr(2));
+        yk = min(max(yk, yr(1)), yr(2));
+
+    case 'y_concentrated_x_uniform'
+        % y集中、x分散模型：x均匀，y围绕中心做窄高斯
+        xk = xr(1) + (xr(2)-xr(1))*rand(1,K);
+        yk = params.y_conc_center + params.y_conc_sigma * randn(1,K);
+        yk = min(max(yk, yr(1)), yr(2));
+
+    case 'x_concentrated_y_uniform'
+        % x集中、y分散模型：x围绕中心做窄高斯，y均匀
+        xk = params.x_conc_center + params.x_conc_sigma * randn(1,K);
+        yk = yr(1) + (yr(2)-yr(1))*rand(1,K);
+        xk = min(max(xk, xr(1)), xr(2));
+
+    otherwise
+        error('build_scene: unsupported user_distribution_model');
+end
+
 zk = zeros(1,K);
 
 scene = struct();
