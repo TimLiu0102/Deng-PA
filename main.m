@@ -128,8 +128,9 @@ for t = 1:params.T_max
     state.t = t;
 
     % 1) 更新 W
-    state.W = AO_W(params, scene, model, state);
-    R_after_W = Signal_model('sum_rate', params, scene, state, []);
+    % state.W = AO_W(params, scene, model, state);
+    % R_after_W = Signal_model('sum_rate', params, scene, state, []);
+    R_after_W = R_old;
 
     % 2) 更新角度（全向自由空间模型下跳过）
     % [state.theta, state.phi] = AO_angle(params, scene, model, state);
