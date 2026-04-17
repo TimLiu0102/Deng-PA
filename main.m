@@ -74,6 +74,31 @@ params.eps_outer = 1e-4;
 params.seed = 7;
 rng(params.seed);
 
+%% 10A) 用户分布模型设置（注释切换）
+% params.user_distribution_model = 'uniform_random';           % 当前：均匀随机模型
+% params.user_distribution_model = 'single_cluster';           % 当前：单簇集中模型
+% params.user_distribution_model = 'double_cluster';           % 当前：双簇分布模型
+params.user_distribution_model = 'y_concentrated_x_uniform';   % 当前：y集中、x分散模型
+% params.user_distribution_model = 'x_concentrated_y_uniform'; % 当前：x集中、y分散模型
+
+% 单簇参数
+params.cluster1_center = [6.25, 6.0];
+params.cluster1_sigma = [0.6, 0.6];
+
+% 双簇参数
+params.cluster2_center = [3.0, 3.0];
+params.cluster2_sigma = [0.6, 0.6];
+params.cluster3_center = [8.0, 8.0];
+params.cluster3_sigma = [0.6, 0.6];
+
+% y集中、x分散参数
+params.y_conc_center = 5.0;
+params.y_conc_sigma = 0.5;
+
+% x集中、y分散参数
+params.x_conc_center = 6.25;
+params.x_conc_sigma = 0.5;
+
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
@@ -136,10 +161,10 @@ for t = 1:params.T_max
     R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
-    % [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
-    % history.X_update_mode = 'gradient';
-    [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
-    history.X_update_mode = 'exhaustive';
+    [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
+    history.X_update_mode = 'gradient';
+    % [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
+    % history.X_update_mode = 'exhaustive';
     R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
