@@ -8,11 +8,11 @@ clc; clear; close all;
 params = struct();
 
 % 1) 系统规模参数
-params.N = 4;
-params.M = 4;
-params.K = 32;
-params.NRF = 4;
-params.K_max = 4;
+params.N = 2;
+params.M = 2;
+params.K = 4;
+params.NRF =params.N;
+params.K_max = 2;
 params.K_serv = min(params.NRF, params.K_max);
 
 % 2) 几何参数
@@ -79,8 +79,8 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
-% state = Initialization_ra(params, scene, model);
+% state = Initialization(params, scene, model);
+state = Initialization_ra(params, scene, model);
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
@@ -141,8 +141,18 @@ for t = 1:params.T_max
     % history.X_update_mode = 'gradient';
     [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
     history.X_update_mode = 'exhaustive';
-    R_after_X = Signal_model('sum_rate', params, scene, state, []);
-
+   i=1;
+    for y1=0:1:10
+        for y2=0:1:10
+            for y3=0:1:10
+                for y4=0:1:10
+                     state.X=[y1,y2;y3,y4];
+    R_after_X(i) = Signal_model('sum_rate', params, scene, state, []);
+    i=i+1
+                end
+            end
+        end
+    end 
     % 4) 更新用户集合
     [state.S, state.swap_flag] = AO_S(params, scene, model, state);
     % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);

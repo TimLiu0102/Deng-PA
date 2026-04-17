@@ -50,6 +50,8 @@ feed_pos = [xW; zeros(1,N); params.d*ones(1,N)]; % 3 x N
 
 if isfield(params,'user_x_rng'), xr = params.user_x_rng; else, xr = [0, params.Dx]; end
 if isfield(params,'user_y_rng'), yr = params.user_y_rng; else, yr = [0, params.Dy]; end
+xr=[1,20];
+yr=[0,20];
 xk = xr(1) + (xr(2)-xr(1))*rand(1,K);
 yk = yr(1) + (yr(2)-yr(1))*rand(1,K);
 zk = zeros(1,K);
