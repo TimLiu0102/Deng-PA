@@ -75,10 +75,10 @@ params.seed = 7;
 rng(params.seed);
 
 %% 10A) 用户分布模型设置（注释切换）
-% params.user_distribution_model = 'uniform_random';           % 当前：均匀随机模型
+params.user_distribution_model = 'uniform_random';           % 当前：均匀随机模型
 % params.user_distribution_model = 'single_cluster';           % 当前：单簇集中模型
 % params.user_distribution_model = 'double_cluster';           % 当前：双簇分布模型
-params.user_distribution_model = 'y_concentrated_x_uniform';   % 当前：y集中、x分散模型
+% params.user_distribution_model = 'y_concentrated_x_uniform';   % 当前：y集中、x分散模型
 % params.user_distribution_model = 'x_concentrated_y_uniform'; % 当前：x集中、y分散模型
 
 % 单簇参数
@@ -104,8 +104,8 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
-% state = Initialization_ra(params, scene, model);
+% state = Initialization(params, scene, model);
+state = Initialization_ra(params, scene, model);
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
