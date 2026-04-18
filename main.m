@@ -75,7 +75,21 @@ params.max_swaps = 1;
 params.T_max = 30;
 params.eps_outer = 1e-4;
 
-% 10) 随机种子
+% 10) 算法模式
+params.alg_mode = 'AO';
+% 可选：
+% params.alg_mode = 'AO';
+% params.alg_mode = 'SA_joint';
+
+% 11) SA 联合优化参数
+params.SA_max_iter = 200;
+params.SA_T0 = 1.0;
+params.SA_alpha = 0.97;
+params.SA_step_X = 0.5;
+params.SA_step_theta = 0.08;
+params.SA_step_phi = 0.08;
+
+% 12) 随机种子
 params.seed = 7;
 rng(params.seed);
 
@@ -84,8 +98,19 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
-% state = Initialization_ra(params, scene, model);
+% state = Initialization(params, scene, model);
+state = Initialization_ra(params, scene, model);
+
+if strcmpi(params.alg_mode, 'SA_joint')
+    [state, history] = SA_joint(params, scene, model, state);
+
+    result = struct();
+    result.state = state;
+    result.history = history;
+
+    Print_and_Plot(params, scene, model, result);
+    return;
+end
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
