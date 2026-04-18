@@ -67,5 +67,5 @@ phi_candidate_all(n,m) = phi_nm;
 state_tmp = state;
 state_tmp.theta = theta_candidate_all;
 state_tmp.phi = phi_candidate_all;
-R = Signal_model('sum_rate', params, scene, state_tmp, struct());
+R = Signal_model('channel_logdet', params, scene, state_tmp, struct());
 end

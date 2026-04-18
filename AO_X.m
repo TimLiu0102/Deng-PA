@@ -85,7 +85,7 @@ function f = local_objective_fn(n, x_n, X_ref, params, scene, state)
 X_tmp = replace_waveguide_position(X_ref, n, x_n);
 state_tmp = state;
 state_tmp.X = X_tmp;
-f = Signal_model('sum_rate', params, scene, state_tmp, struct());
+f = Signal_model('channel_logdet', params, scene, state_tmp, struct());
 end
 
 function g = numerical_gradient_position(n, x_n, X_ref, params, scene, state)

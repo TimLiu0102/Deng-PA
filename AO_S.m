@@ -43,7 +43,7 @@ for iter_swap = 1:max_swaps
     end
 
     % 当前基准sum rate
-    R_base = Signal_model('sum_rate', params, scene, state_now, struct());
+    R_base = Signal_model('channel_logdet', params, scene, state_now, struct());
 
     % 5)-6) 枚举 single-swap 并计算交换增益 Delta
     best_delta = -inf;
@@ -129,7 +129,7 @@ S_candidate(pos_in_S) = user_out;
 state_candidate = state_now;
 state_candidate.S = S_candidate;
 
-R_candidate = Signal_model('sum_rate', params, scene, state_candidate, struct());
+    R_candidate = Signal_model('channel_logdet', params, scene, state_candidate, struct());
 delta_val = R_candidate - R_base;
 end
 

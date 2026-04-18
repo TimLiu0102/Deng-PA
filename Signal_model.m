@@ -24,6 +24,9 @@ switch lower(mode)
     case 'individual_rates'
         out = compute_individual_rates(params, scene, state);
 
+    case 'channel_logdet'
+        out = compute_channel_logdet(params, scene, state);
+
     otherwise
         error('Signal_model: unsupported mode');
 end
@@ -147,4 +150,13 @@ if isfield(state,'W') && ~isempty(state.W)
 end
 
 error('Signal_model: state.W 缺失或尺寸不匹配');
+end
+
+function J = compute_channel_logdet(params, scene, state)
+extra_ch = struct();
+extra_ch.use_all = false;
+ch_out = Channel_model('all_users', params, scene, state, extra_ch);
+H = ch_out.H;
+Kc = size(H,2);
+J = real(log2(det(eye(Kc) + H' * H)));
 end
