@@ -76,10 +76,10 @@ params.T_max = 30;
 params.eps_outer = 1e-4;
 
 % 10) 算法模式
-params.alg_mode = 'AO';
+% params.alg_mode = 'AO';
 % 可选：
 % params.alg_mode = 'AO';
-% params.alg_mode = 'SA_joint';
+params.alg_mode = 'SA_joint';
 
 % 11) SA 联合优化参数
 params.SA_max_iter = 200;
