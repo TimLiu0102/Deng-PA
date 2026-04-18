@@ -74,20 +74,32 @@ rng(params.seed);
 scene = Channel_model('build_scene', params, [], [], []);
 
 state = struct();
-state.theta = pi;
-state.phi = 0;
+state.X = 5;   % 固定位置
 
-y_grid = 0:0.1:10;
-rec = zeros(size(y_grid));
+theta_grid = linspace(pi/2, pi, 80);
+phi_grid = linspace(-pi, pi, 80);
 
-for i = 1:numel(y_grid)
-    y = y_grid(i);
+rec_angle = zeros(numel(theta_grid), numel(phi_grid));
 
-    state.X = y;
+for it = 1:numel(theta_grid)
+    for ip = 1:numel(phi_grid)
+        state.theta = theta_grid(it);
+        state.phi = phi_grid(ip);
 
-    ch_out = Channel_model('all_users', params, scene, state, []);
-    H = ch_out.H;
-    user_idx = ch_out.user_idx(:).';
+        ch_out = Channel_model('all_users', params, scene, state, []);
+        H = ch_out.H;
 
-    rec(i) = norm(H, 'fro')^2;
-end 
+        rec_angle(it, ip) = norm(H, 'fro')^2;
+    end
+end
+
+phi_deg = rad2deg(phi_grid);
+theta_deg = rad2deg(theta_grid);
+
+figure;
+imagesc(phi_deg, theta_deg, rec_angle);
+xlabel('\phi (deg)');
+ylabel('\theta (deg)');
+title('信道能量随 \theta 和 \phi 旋转变化');
+colorbar;
+set(gca, 'YDir', 'normal');
