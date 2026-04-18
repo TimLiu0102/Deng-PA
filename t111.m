@@ -1,0 +1,93 @@
+clc; clear; close all;
+
+%% 第2部分：参数设置
+params = struct();
+
+% 1) 系统规模参数
+params.N = 1;
+params.M = 1;
+params.K = 32;
+params.NRF = 1;
+params.K_max = 1;
+params.K_serv = min(params.NRF, params.K_max);
+
+% 2) 几何参数
+params.Dx = 10;
+params.Dy = 10;
+params.d = 5;
+params.Delta = 0.5;
+
+% 3) 信道参数
+params.lambda = 0.01;
+params.n_eff = 1.6;
+params.alphaW = 0.01;
+params.alphaL = 0.96;
+params.a = 10;
+params.b = 6;
+params.v = 1.1;
+params.n_refr = 1.5;
+% 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
+params.eta = 1.0;
+params.P_max = 1.0;
+params.sigma2 = 1e-2;
+
+% 4) 初始化参数
+params.lambda_mov = 0.01;
+
+% 5) WMMSE 参数
+params.I_W = 40;
+params.eps_W = 1e-3;
+
+% 6) 角度更新参数
+params.I_theta = 6;
+params.Delta_theta0 = 0.08;
+params.Delta_phi0 = 0.08;
+params.beta_theta = 0.6;
+params.beta_phi = 0.6;
+params.eps_theta = 1e-5;
+
+% 7) 位置更新参数
+params.step_fd = 1e-3;
+params.line_search_alpha0 = 0.5;
+params.line_search_beta = 0.5;
+params.line_search_max_iter = 8;
+params.eps_X = 1e-4;
+params.I_X = 6;
+params.lbfgs_mem = 5;
+
+% 8) 用户集更新参数
+params.T_S = 2;
+params.L_in = 2;
+params.L_out = 4;
+params.eps_S = 1e-4;
+params.max_swaps = 1;
+
+% 9) 外层停止参数
+params.T_max = 30;
+params.eps_outer = 1e-3;
+
+% 10) 随机种子
+params.seed = 7;
+rng(params.seed);
+
+%% 第3部分：场景生成与问题定义
+scene = Channel_model('build_scene', params, [], [], []);
+
+state = struct();
+state.theta = pi;
+state.phi = 0;
+
+y_grid = 0:0.1:10;
+rec = zeros(size(y_grid));
+
+for i = 1:numel(y_grid)
+    y = y_grid(i);
+
+    state.X = y;
+
+    ch_out = Channel_model('all_users', params, scene, state, []);
+    H = ch_out.H;
+    user_idx = ch_out.user_idx(:).';
+
+    rec(i) = norm(H, 'fro')^2;
+end 
