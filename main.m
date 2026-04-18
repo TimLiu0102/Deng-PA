@@ -135,41 +135,29 @@ for t = 1:params.T_max
     % 当前外层迭代编号，供 AO_S 周期触发判断
     state.t = t;
 
-    % 1) 只更新 W
-    state.W = AO_W(params, scene, model, state);
-    R_after_W = Signal_model('sum_rate', params, scene, state, []);
-
-    % 2) 角度、位置和用户集合全部冻结
-    J_after_angle = Signal_model('channel_logdet', params, scene, state, []);
-    J_after_X = J_after_angle;
-    J_after_S = J_after_X;
-    R_after_angle = R_after_W;
-    R_after_X = R_after_W;
-    R_after_S = R_after_W;
-
     
     % 2) 更新角度（全向自由空间模型下跳过）
     % [state.theta, state.phi] = AO_angle(params, scene, model, state);
-    % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
-    % J_after_angle = Signal_model('channel_logdet', params, scene, state, []);
-    % R_after_angle = Signal_model('sum_rate', params, scene, state, []);
+    [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
+    J_after_angle = Signal_model('channel_logdet', params, scene, state, []);
+    R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
     % [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
     % history.X_update_mode = 'gradient';
-    % [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
-    % history.X_update_mode = 'exhaustive';
-    % J_after_X = Signal_model('channel_logdet', params, scene, state, []);
-    % R_after_X = Signal_model('sum_rate', params, scene, state, []);
+    [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
+    history.X_update_mode = 'exhaustive';
+    J_after_X = Signal_model('channel_logdet', params, scene, state, []);
+    R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
     % [state.S, state.swap_flag] = AO_S(params, scene, model, state);
-    % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
-    % J_after_S = Signal_model('channel_logdet', params, scene, state, []);
-    % R_after_S = Signal_model('sum_rate', params, scene, state, []);
+    [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
+    J_after_S = Signal_model('channel_logdet', params, scene, state, []);
+    R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
     % 5) 保存每轮四块更新后的中间 sum rate
-    history.R_after_W(end+1,1) = R_after_W;
+    % history.R_after_W(end+1,1) = R_after_W;
     history.R_after_angle(end+1,1) = R_after_angle;
     history.R_after_X(end+1,1) = R_after_X;
     history.R_after_S(end+1,1) = R_after_S;
