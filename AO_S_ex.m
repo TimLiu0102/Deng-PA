@@ -59,5 +59,5 @@ function R = evaluate_user_set_ex(params, scene, state, S_candidate)
 % 固定当前 (X,W,theta,phi)，仅替换 S 并计算真实 sum rate
 state_tmp = state;
 state_tmp.S = S_candidate(:).';
-R = Signal_model('sum_rate', params, scene, state_tmp, struct());
+R = Signal_model('channel_logdet', params, scene, state_tmp, struct());
 end

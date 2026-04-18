@@ -175,7 +175,7 @@ state_tmp.theta = theta_all;
 state_tmp.phi = phi_all;
 state_tmp.theta(n,m) = theta_nm;
 state_tmp.phi(n,m) = phi_nm;
-R = Signal_model('sum_rate', params, scene, state_tmp, struct());
+R = Signal_model('channel_logdet', params, scene, state_tmp, struct());
 end
 
 function [theta, phi] = project_angle_pair(theta, phi)

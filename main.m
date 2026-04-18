@@ -92,7 +92,7 @@ end
 
 %% 第5部分：初始性能与历史量
 rates0 = Signal_model('individual_rates', params, scene, state, []);
-R_old = sum(rates0);
+J_old = Signal_model('channel_logdet', params, scene, state, []);
 
 history = struct();
 
@@ -104,13 +104,17 @@ history.S0 = state.S;
 history.rates0 = rates0;
 
 % 初始 sum rate
-history.R_sum = R_old;
+history.R_sum = sum(rates0);
+history.J_channel = J_old;
 
 % 每轮四块后的中间 sum rate
 history.R_after_W = [];
 history.R_after_angle = [];
 history.R_after_X = [];
 history.R_after_S = [];
+history.J_after_angle = [];
+history.J_after_X = [];
+history.J_after_S = [];
 
 % 每轮变量快照
 history.S_cells = {};
@@ -136,6 +140,9 @@ for t = 1:params.T_max
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
     % 2) 角度、位置和用户集合全部冻结
+    J_after_angle = Signal_model('channel_logdet', params, scene, state, []);
+    J_after_X = J_after_angle;
+    J_after_S = J_after_X;
     R_after_angle = R_after_W;
     R_after_X = R_after_W;
     R_after_S = R_after_W;
@@ -144,6 +151,7 @@ for t = 1:params.T_max
     % 2) 更新角度（全向自由空间模型下跳过）
     % [state.theta, state.phi] = AO_angle(params, scene, model, state);
     % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
+    % J_after_angle = Signal_model('channel_logdet', params, scene, state, []);
     % R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
@@ -151,11 +159,13 @@ for t = 1:params.T_max
     % history.X_update_mode = 'gradient';
     % [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
     % history.X_update_mode = 'exhaustive';
+    % J_after_X = Signal_model('channel_logdet', params, scene, state, []);
     % R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
     % 4) 更新用户集合
     % [state.S, state.swap_flag] = AO_S(params, scene, model, state);
     % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
+    % J_after_S = Signal_model('channel_logdet', params, scene, state, []);
     % R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
     % 5) 保存每轮四块更新后的中间 sum rate
@@ -163,10 +173,15 @@ for t = 1:params.T_max
     history.R_after_angle(end+1,1) = R_after_angle;
     history.R_after_X(end+1,1) = R_after_X;
     history.R_after_S(end+1,1) = R_after_S;
+    history.J_after_angle(end+1,1) = J_after_angle;
+    history.J_after_X(end+1,1) = J_after_X;
+    history.J_after_S(end+1,1) = J_after_S;
 
     % 6) 该轮最终真实 sum rate
+    J_new = J_after_S;
     R_new = R_after_S;
     history.R_sum(end+1,1) = R_new;
+    history.J_channel(end+1,1) = J_new;
 
     % 7) 保存每轮变量快照
     history.S_cells{t,1} = state.S;
@@ -182,16 +197,20 @@ for t = 1:params.T_max
     % 8) 外层停止判断
     % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
     % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
-    if abs(R_new - R_old) < params.eps_outer
+    if abs(J_new - J_old) < params.eps_outer
         break;
     end
 
     % 9) 更新上一轮目标值
-    R_old = R_new;
+    J_old = J_new;
    
     
     
 end
+
+state.W = AO_W(params, scene, model, state);
+R_final = Signal_model('sum_rate', params, scene, state, []);
+history.R_final_after_W = R_final;
 
 
 %% 第8部分：整理输出并调用结果显示模块

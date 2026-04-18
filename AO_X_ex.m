@@ -41,7 +41,7 @@ for it = 1:max_round
 
     state_round = state;
     state_round.X = X_cur;
-    R_round_old = Signal_model('sum_rate', params, scene, state_round, struct());
+    R_round_old = Signal_model('channel_logdet', params, scene, state_round, struct());
 
     DEBUG_X_iter = struct();
     DEBUG_X_iter.DEBUG_X_x_raw = nan(M, L);
@@ -115,7 +115,7 @@ for it = 1:max_round
 
     state_round_new = state;
     state_round_new.X = X_cur;
-    R_round_new = Signal_model('sum_rate', params, scene, state_round_new, struct());
+    R_round_new = Signal_model('channel_logdet', params, scene, state_round_new, struct());
 
     if it <= params.I_X
         DEBUG_X_waveguide.DEBUG_X_iters{it,1} = DEBUG_X_iter;
@@ -142,5 +142,5 @@ X_candidate(n,:) = xproj_n(:).';
 
 state_tmp = state;
 state_tmp.X = X_candidate;
-R = Signal_model('sum_rate', params, scene, state_tmp, struct());
+R = Signal_model('channel_logdet', params, scene, state_tmp, struct());
 end
