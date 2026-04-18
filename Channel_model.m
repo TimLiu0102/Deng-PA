@@ -45,7 +45,10 @@ function scene = build_scene(params)
 % 对应论文几何定义：用户位置、波导横向坐标、馈电点
 N = params.N; M = params.M; K = params.K;
 
-xW = ((2*(1:N)-1)/(2*N)) * params.Dx;      % 1 x N
+%xW = ((2*(1:N)-1)/(2*N)) * params.Dx;      % 1 x N
+%feed_pos = [xW; zeros(1,N); params.d*ones(1,N)]; % 3 x N
+
+xW = (0:N-1) * params.lambda / 2;          % 1 x N，从 x=0 开始，间隔 lambda/2
 feed_pos = [xW; zeros(1,N); params.d*ones(1,N)]; % 3 x N
 
 if isfield(params,'user_x_rng'), xr = params.user_x_rng; else, xr = [0, params.Dx]; end
@@ -53,6 +56,7 @@ if isfield(params,'user_y_rng'), yr = params.user_y_rng; else, yr = [0, params.D
 xk = xr(1) + (xr(2)-xr(1))*rand(1,K);
 yk = yr(1) + (yr(2)-yr(1))*rand(1,K);
 zk = zeros(1,K);
+
 
 scene = struct();
 scene.user_pos = [xk; yk; zk];    % 3 x K
