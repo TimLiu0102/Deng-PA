@@ -79,8 +79,8 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
-% state = Initialization_ra(params, scene, model);
+% state = Initialization(params, scene, model);
+state = Initialization_ra(params, scene, model);
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
@@ -127,14 +127,10 @@ for t = 1:params.T_max
     % 当前外层迭代编号，供 AO_S 周期触发判断
     state.t = t;
 
-    % 1) 更新 W
-    state.W = AO_W(params, scene, model, state);
-    R_after_W = Signal_model('sum_rate', params, scene, state, []);
-
     % 2) 更新角度（全向自由空间模型下跳过）
     % [state.theta, state.phi] = AO_angle(params, scene, model, state);
     % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
-    R_after_angle = R_after_W;
+    R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
     % 3) 更新位置
     % [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
@@ -149,7 +145,7 @@ for t = 1:params.T_max
     R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
     % 5) 保存每轮四块更新后的中间 sum rate
-    history.R_after_W(end+1,1) = R_after_W;
+%     history.R_after_W(end+1,1) = R_after_W;
     history.R_after_angle(end+1,1) = R_after_angle;
     history.R_after_X(end+1,1) = R_after_X;
     history.R_after_S(end+1,1) = R_after_S;
@@ -178,7 +174,23 @@ for t = 1:params.T_max
 
     % 9) 更新上一轮目标值
     R_old = R_new;
+   
+    
+    
 end
+
+    %% 第7部分：角度、位置和用户集合交替优化结束后，最终更新一次 W
+R_before_final_W = Signal_model('sum_rate', params, scene, state, []);
+
+state.W = AO_W(params, scene, model, state);
+
+R_after_final_W = Signal_model('sum_rate', params, scene, state, []);
+
+history.R_before_final_W = R_before_final_W;
+history.R_after_W = R_after_final_W;
+history.R_sum(end+1,1) = R_after_final_W;
+    
+
 
 %% 第8部分：整理输出并调用结果显示模块
 result = struct();
