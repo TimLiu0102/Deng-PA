@@ -17,7 +17,7 @@ params.K_serv = 1;
 % 2) 几何参数
 params.Dx = 10;
 params.Dy = 10;
-params.d = 5;
+params.d = 3;
 params.Delta = 0.5;
 
 % 3) 信道参数（按测试要求设置）
