@@ -78,7 +78,15 @@ end
 
 function ups = radiation_pattern(x, y, z, params)
 % 对应论文局部方向图 Upsilon(x,y,z)
-y_eff = max(y, 1e-9);  % 仅最基本数值保护，不改变公式结构
+% 仅对前向半空间计算方向图：当前模型对应论文里的 forward half-space pencil-like beam
+% 背向半空间不是“小正传播距离”，而是无效方向，直接置零
+if y <= 0
+    ups = 0;
+    return;
+end
+
+% 对非常小的正 y 保留最基本数值保护，避免除零
+y_eff = max(y, 1e-9);
 k0 = 2*pi/params.lambda;
 
 w1 = params.v * params.a * params.lambda;
@@ -123,7 +131,13 @@ for m = 1:M
     d_k_nm = norm(q_k - p_nm);
 
     local_xyz = global_to_local(q_k, p_nm, theta_n(m), phi_n(m));
-    ups = radiation_pattern(local_xyz(1), local_xyz(2), local_xyz(3), params);
+    % local_xyz(2) 就是局部传播方向坐标 y~
+    % y~ <= 0 表示点位于背向半空间；按论文 forward half-space 假设直接置零
+    if local_xyz(2) <= 0
+        ups = 0;
+    else
+        ups = radiation_pattern(local_xyz(1), local_xyz(2), local_xyz(3), params);
+    end
 
     % 严格对应论文自由空间信道公式：sqrt(eta) * alphaL^d * Upsilon
     h_tilde_kn(m) = sqrt(params.eta) * (params.alphaL^d_k_nm) * ups;
