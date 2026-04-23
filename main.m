@@ -8,17 +8,17 @@ clc; clear; close all;
 params = struct();
 
 % 1) 系统规模参数
-params.N = 4;
+params.N = 8;
 params.M = 4;
-params.K = 20;
-params.NRF = 4;
-params.K_max = 4;
+params.K = 32;
+params.NRF = params.N;
+params.K_max = params.N;
 params.K_serv = min(params.NRF, params.K_max);
 
 % 2) 几何参数
 params.Dx = 10;
 params.Dy = 10;
-params.d = 3;
+params.d = 3.5;
 params.Delta = 0.5;
 
 
