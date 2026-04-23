@@ -18,7 +18,7 @@ params.K_serv = min(params.NRF, params.K_max);
 % 2) 几何参数
 params.Dx = 10;
 params.Dy = 10;
-params.d = 5;
+params.d = 3;
 params.Delta = 0.5;
 
 
