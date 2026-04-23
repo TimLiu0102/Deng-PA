@@ -77,12 +77,14 @@ for ia = 1:size(ab_list,1)
     end
 end
 
-% 第二步：收集 9 张图中的全部正值，求统一全局色标范围
+% 第二步：收集 9 张图中的作图值，求统一全局色标范围
+% 这里只为兼容 log 色标显示：把作图用的 0 提升到极小正数，不改原始物理量
 all_positive = [];
 for ia = 1:size(ab_list,1)
     for it = 1:numel(theta_list)
-        tmp = pow_maps{ia,it};
-        tmp = tmp(tmp > 0);
+        pow_map_2d = pow_maps{ia,it};
+        pow_map_plot = max(pow_map_2d, 1e-300);
+        tmp = pow_map_plot(pow_map_plot > 0);
         all_positive = [all_positive; tmp(:)]; %#ok<AGROW>
     end
 end
@@ -98,9 +100,11 @@ for ia = 1:size(ab_list,1)
     for it = 1:numel(theta_list)
         state.theta = theta_list(it);
         pow_map_2d = pow_maps{ia,it};
+        % 模型层面保留真实 0；这里只在作图层做极小正数替换以兼容 log 显示
+        pow_map_plot = max(pow_map_2d, 1e-300);
 
         subplot(3,3,(ia-1)*numel(theta_list)+it);
-        imagesc(y_grid, x_grid, pow_map_2d);
+        imagesc(y_grid, x_grid, pow_map_plot);
         set(gca,'YDir','normal');
         set(gca,'ColorScale','log');
         caxis([cmin, cmax]);
@@ -189,9 +193,12 @@ sgtitle('扩大窗口后的前向/背向半空间诊断');
 
 %% 第4部分：前向功率图 / 背向功率图 分离显示
 % 不修改 Channel_model，仅通过 global_to_local 先做掩膜，再用 all_users 得到同一组网格的真实信道功率
+% 这里把“模型层处理”和“作图层处理”分开：先保证物理量正确，再保证 log 图能显示
 % 这样就可以直接观察背向区域是否也有明显能量
 pow_front_cases = cell(1,2);
 pow_back_cases = cell(1,2);
+pow_front_plot_cases = cell(1,2);
+pow_back_plot_cases = cell(1,2);
 
 for ic = 1:2
     state.theta = theta_case(ic);
@@ -217,16 +224,28 @@ for ic = 1:2
 
     pow_front_cases{ic} = pow_front;
     pow_back_cases{ic} = pow_back;
+
+    % 仅对作图变量做极小正数替换，NaN 位置保持 NaN（对应被掩膜区域）
+    pow_front_plot = pow_front;
+    idx_valid_front = ~isnan(pow_front_plot);
+    pow_front_plot(idx_valid_front) = max(pow_front_plot(idx_valid_front), 1e-300);
+
+    pow_back_plot = pow_back;
+    idx_valid_back = ~isnan(pow_back_plot);
+    pow_back_plot(idx_valid_back) = max(pow_back_plot(idx_valid_back), 1e-300);
+
+    pow_front_plot_cases{ic} = pow_front_plot;
+    pow_back_plot_cases{ic} = pow_back_plot;
 end
 
 % 统一色标（前向+背向四张图共享）
 all_positive_fb = [];
 for ic = 1:2
-    t1 = pow_front_cases{ic};
+    t1 = pow_front_plot_cases{ic};
     t1 = t1(isfinite(t1) & t1 > 0);
     all_positive_fb = [all_positive_fb; t1(:)]; %#ok<AGROW>
 
-    t2 = pow_back_cases{ic};
+    t2 = pow_back_plot_cases{ic};
     t2 = t2(isfinite(t2) & t2 > 0);
     all_positive_fb = [all_positive_fb; t2(:)]; %#ok<AGROW>
 end
@@ -236,7 +255,7 @@ cmax_fb = max(all_positive_fb);
 figure('Name', 'Front_Back_Power_Separated', 'Color', 'w');
 for ic = 1:2
     subplot(2,2,ic);
-    imagesc(y_grid2, x_grid2, pow_front_cases{ic});
+    imagesc(y_grid2, x_grid2, pow_front_plot_cases{ic});
     set(gca,'YDir','normal');
     set(gca,'ColorScale','log');
     caxis([cmin_fb, cmax_fb]);
@@ -249,7 +268,7 @@ for ic = 1:2
     title(sprintf('前向功率图, \\theta=%.4f, \\phi=%.4f', theta_case(ic), phi_case(ic)));
 
     subplot(2,2,2+ic);
-    imagesc(y_grid2, x_grid2, pow_back_cases{ic});
+    imagesc(y_grid2, x_grid2, pow_back_plot_cases{ic});
     set(gca,'YDir','normal');
     set(gca,'ColorScale','log');
     caxis([cmin_fb, cmax_fb]);
@@ -295,10 +314,14 @@ ch_bwd = Channel_model('all_users', params, scene, state, extra);
 H_backward = ch_bwd.H;
 pow_backward = abs(H_backward).^2;
 
+% 模型层真实 0 保留；作图时转成极小正数，避免 semilogy 对 0 显示异常
+pow_forward_plot = max(pow_forward, 1e-300);
+pow_backward_plot = max(pow_backward, 1e-300);
+
 figure('Name', '3D_axis_forward_backward_compare', 'Color', 'w');
-semilogy(s_line, pow_forward, 'b-', 'LineWidth', 1.3, 'DisplayName', '正向轴线');
+semilogy(s_line, pow_forward_plot, 'b-', 'LineWidth', 1.3, 'DisplayName', '正向轴线');
 hold on;
-semilogy(s_line, pow_backward, 'r--', 'LineWidth', 1.3, 'DisplayName', '反向轴线');
+semilogy(s_line, pow_backward_plot, 'r--', 'LineWidth', 1.3, 'DisplayName', '反向轴线');
 hold off;
 grid on;
 xlabel('s');
@@ -306,14 +329,19 @@ ylabel('|H|^2');
 title('波束轴正向/反向 3D 采样对比');
 legend('Location', 'best');
 
-ratio_back_to_front = max(pow_backward) / max(pow_forward);
 fprintf('\n===== 波束轴正向/反向 3D 采样定量结果 =====\n');
 fprintf('max(pow_forward) = %.6e\n', max(pow_forward));
 fprintf('max(pow_backward) = %.6e\n', max(pow_backward));
-fprintf('ratio_back_to_front = %.6e\n', ratio_back_to_front);
+if max(pow_forward) == 0
+    fprintf('正向轴线最大功率为0，无法计算原始比值。\n');
+else
+    ratio_back_to_front = max(pow_backward) / max(pow_forward);
+    fprintf('ratio_back_to_front = %.6e\n', ratio_back_to_front);
+end
 
 figure('Name', 'Backward_to_Forward_ratio_vs_s', 'Color', 'w');
-semilogy(s_line, pow_backward ./ pow_forward, 'k-', 'LineWidth', 1.3);
+ratio_plot = pow_backward_plot ./ pow_forward_plot;
+semilogy(s_line, ratio_plot, 'k-', 'LineWidth', 1.3);
 grid on;
 xlabel('s');
 ylabel('pow\_backward / pow\_forward');
