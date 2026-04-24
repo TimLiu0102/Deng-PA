@@ -294,7 +294,8 @@ result.model = model;
 
 %% 第8部分：结果显示方式切换
 % 方式1：新的论文式多方案对比图（默认启用）
-Plot_Compare(params);
+compare_result = Plot_Compare(params);
+result.compare_result = compare_result;
 
 % 方式2：原来的单次仿真结果图
 % Print_and_Plot(params, scene, model, result);
