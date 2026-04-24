@@ -27,7 +27,7 @@ if strcmp(plot_mode, 'debug')
     snr_dB_vec = [0 10 20];
     K_vec = [16 32];
     N_vec = [4 8];
-    M_vec = [2 4];
+    M_vec = [4 6];
 else
     MC = 3;
     snr_dB_vec = [-10 -5 0 5 10 15 20 25 30];
