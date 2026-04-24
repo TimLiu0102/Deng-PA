@@ -135,6 +135,7 @@ if strcmp(scheme_mode, 'ao_final_w')
     for t = 1:params.T_max
         % 当前外层迭代编号，供 AO_S 周期触发判断
         state.t = t;
+        R_after_W = R_old;
 
         % 2) 更新角度
         [state.theta, state.phi] = AO_angle(params, scene, model, state);
@@ -154,7 +155,7 @@ if strcmp(scheme_mode, 'ao_final_w')
         R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
         % 5) 保存每轮四块更新后的中间 sum rate
-        % history.R_after_W(end+1,1) = R_after_W;
+        history.R_after_W(end+1,1) = R_after_W;
         history.R_after_angle(end+1,1) = R_after_angle;
         history.R_after_X(end+1,1) = R_after_X;
         history.R_after_S(end+1,1) = R_after_S;
@@ -193,11 +194,13 @@ if strcmp(scheme_mode, 'ao_final_w')
     R_after_final_W = Signal_model('sum_rate', params, scene, state, []);
 
     history.R_before_final_W = R_before_final_W;
-    history.R_after_W = R_after_final_W;
-    history.R_sum(end+1,1) = R_after_final_W;
+    history.R_after_final_W = R_after_final_W;
+    history.R_sum(end,1) = R_after_final_W;
 
 elseif strcmp(scheme_mode, 'w_only')
     history.X_update_mode = 'none';
+    history.R_before_final_W = [];
+    history.R_after_final_W = [];
 
     for t = 1:params.T_max
         state.t = t;
@@ -259,6 +262,13 @@ elseif strcmp(scheme_mode, 'sa_joint')
     if ~isfield(history, 'R_after_S')
         history.R_after_S = [];
     end
+    if ~isfield(history, 'R_before_final_W')
+        history.R_before_final_W = [];
+    end
+    if ~isfield(history, 'R_after_final_W')
+        history.R_after_final_W = [];
+    end
+    history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
 
 else
     error('main: unsupported scheme_mode');
