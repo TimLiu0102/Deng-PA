@@ -79,6 +79,9 @@ params.eps_outer = 1e-4;
 params.seed = 7;
 rng(params.seed);
 
+% ======================== 算法方案开关 ========================
+scheme_mode = 'ao_final_w';   % 'ao_final_w' | 'w_only' | 'sa_joint'
+
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
@@ -126,78 +129,156 @@ history.DEBUG_X_cells = {};
 % 交换标记历史（保留原有语义：首个元素对应初始化）
 history.swap_flag = false;
 
-%% 第6部分：外层交替优化主循环（固定顺序）
-for t = 1:params.T_max
-    % 当前外层迭代编号，供 AO_S 周期触发判断
-    state.t = t;
+%% 第6部分：根据 scheme_mode 执行算法
+if strcmp(scheme_mode, 'ao_final_w')
+    % 外层交替优化主循环（固定顺序）
+    for t = 1:params.T_max
+        % 当前外层迭代编号，供 AO_S 周期触发判断
+        state.t = t;
+        R_after_W = R_old;
 
-    % 2) 更新角度
-    [state.theta, state.phi] = AO_angle(params, scene, model, state);
-    % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
-    R_after_angle = Signal_model('sum_rate', params, scene, state, []);
+        % 2) 更新角度
+        [state.theta, state.phi] = AO_angle(params, scene, model, state);
+        % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
+        R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
-    % 3) 更新位置
-    [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
-    history.X_update_mode = 'gradient';
-    % [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
-    % history.X_update_mode = 'exhaustive';
-    R_after_X = Signal_model('sum_rate', params, scene, state, []);
+        % 3) 更新位置
+        [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
+        history.X_update_mode = 'gradient';
+        % [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
+        % history.X_update_mode = 'exhaustive';
+        R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
-    % 4) 更新用户集合
-    [state.S, state.swap_flag] = AO_S(params, scene, model, state);
-    % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
-    R_after_S = Signal_model('sum_rate', params, scene, state, []);
+        % 4) 更新用户集合
+        [state.S, state.swap_flag] = AO_S(params, scene, model, state);
+        % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
+        R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
-    % 5) 保存每轮四块更新后的中间 sum rate
-    % history.R_after_W(end+1,1) = R_after_W;
-    history.R_after_angle(end+1,1) = R_after_angle;
-    history.R_after_X(end+1,1) = R_after_X;
-    history.R_after_S(end+1,1) = R_after_S;
+        % 5) 保存每轮四块更新后的中间 sum rate
+        history.R_after_W(end+1,1) = R_after_W;
+        history.R_after_angle(end+1,1) = R_after_angle;
+        history.R_after_X(end+1,1) = R_after_X;
+        history.R_after_S(end+1,1) = R_after_S;
 
-    % 6) 该轮最终真实 sum rate
-    R_new = R_after_S;
-    history.R_sum(end+1,1) = R_new;
+        % 6) 该轮最终真实 sum rate
+        R_new = R_after_S;
+        history.R_sum(end+1,1) = R_new;
 
-    % 7) 保存每轮变量快照
-    history.S_cells{t,1} = state.S;
-    history.X_cells{t,1} = state.X;
-    history.theta_cells{t,1} = state.theta;
-    history.phi_cells{t,1} = state.phi;
-    history.swap_flag(end+1,1) = state.swap_flag;
+        % 7) 保存每轮变量快照
+        history.S_cells{t,1} = state.S;
+        history.X_cells{t,1} = state.X;
+        history.theta_cells{t,1} = state.theta;
+        history.phi_cells{t,1} = state.phi;
+        history.swap_flag(end+1,1) = state.swap_flag;
 
-    %% ======================== DEBUG_X START ========================
-    % history.DEBUG_X_cells{t,1} = DEBUG_X_t;
-    %% ======================== DEBUG_X END ==========================
+        %% ======================== DEBUG_X START ========================
+        % history.DEBUG_X_cells{t,1} = DEBUG_X_t;
+        %% ======================== DEBUG_X END ==========================
 
-    % 8) 外层停止判断
-    % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
-    % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
-    if abs(R_new - R_old) < params.eps_outer
-        break;
+        % 8) 外层停止判断
+        % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
+        % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
+        if abs(R_new - R_old) < params.eps_outer
+            break;
+        end
+
+        % 9) 更新上一轮目标值
+        R_old = R_new;
     end
 
-    % 9) 更新上一轮目标值
-    R_old = R_new;
+    % 角度、位置和用户集合交替优化结束后，最终更新一次 W
+    R_before_final_W = Signal_model('sum_rate', params, scene, state, []);
+
+    state.W = AO_W(params, scene, model, state);
+
+    R_after_final_W = Signal_model('sum_rate', params, scene, state, []);
+
+    history.R_before_final_W = R_before_final_W;
+    history.R_after_final_W = R_after_final_W;
+    history.R_sum(end,1) = R_after_final_W;
+
+elseif strcmp(scheme_mode, 'w_only')
+    history.X_update_mode = 'none';
+    history.R_before_final_W = [];
+    history.R_after_final_W = [];
+
+    for t = 1:params.T_max
+        state.t = t;
+        state.swap_flag = false;
+
+        % 1) 只更新 W
+        state.W = AO_W(params, scene, model, state);
+        R_after_W = Signal_model('sum_rate', params, scene, state, []);
+
+        % 2) 角度、位置和用户集合全部冻结
+        R_after_angle = R_after_W;
+        R_after_X = R_after_W;
+        R_after_S = R_after_W;
+
+        history.R_after_W(end+1,1) = R_after_W;
+        history.R_after_angle(end+1,1) = R_after_angle;
+        history.R_after_X(end+1,1) = R_after_X;
+        history.R_after_S(end+1,1) = R_after_S;
+
+        R_new = R_after_S;
+        history.R_sum(end+1,1) = R_new;
+
+        history.S_cells{t,1} = state.S;
+        history.X_cells{t,1} = state.X;
+        history.theta_cells{t,1} = state.theta;
+        history.phi_cells{t,1} = state.phi;
+        history.swap_flag(end+1,1) = state.swap_flag;
+
+        history.DEBUG_X_cells{t,1} = [];
+
+        if abs(R_new - R_old) < params.eps_outer
+            break;
+        end
+
+        R_old = R_new;
+    end
+
+elseif strcmp(scheme_mode, 'sa_joint')
+    [state_best, history_sa] = SA_joint(params, scene, model, state);
+
+    state = state_best;
+    history = history_sa;
+
+    if ~isfield(history, 'DEBUG_X_cells')
+        history.DEBUG_X_cells = {};
+    end
+    if ~isfield(history, 'X_update_mode')
+        history.X_update_mode = 'none';
+    end
+    if ~isfield(history, 'R_after_W')
+        history.R_after_W = [];
+    end
+    if ~isfield(history, 'R_after_angle')
+        history.R_after_angle = [];
+    end
+    if ~isfield(history, 'R_after_X')
+        history.R_after_X = [];
+    end
+    if ~isfield(history, 'R_after_S')
+        history.R_after_S = [];
+    end
+    if ~isfield(history, 'R_before_final_W')
+        history.R_before_final_W = [];
+    end
+    if ~isfield(history, 'R_after_final_W')
+        history.R_after_final_W = [];
+    end
+    history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
+
+else
+    error('main: unsupported scheme_mode');
 end
 
-%% 第7部分：角度、位置和用户集合交替优化结束后，最终更新一次 W
-R_before_final_W = Signal_model('sum_rate', params, scene, state, []);
-
-state.W = AO_W(params, scene, model, state);
-
-R_after_final_W = Signal_model('sum_rate', params, scene, state, []);
-
-history.R_before_final_W = R_before_final_W;
-history.R_after_W = R_after_final_W;
-history.R_sum(end+1,1) = R_after_final_W;
-    
-
-
-
-%% 第8部分：整理输出并调用结果显示模块
+%% 第7部分：整理输出并调用结果显示模块
 result = struct();
 result.state = state;
 result.history = history;
+result.params = params;
 result.scene = scene;
 result.model = model;
 
