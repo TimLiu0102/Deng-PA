@@ -80,15 +80,15 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'ao_final_w';   % 'ao_final_w' | 'w_only' | 'sa_joint'
+scheme_mode = 'sa_joint';   % 'ao_final_w' | 'w_only' | 'sa_joint'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
-% state = Initialization_ra(params, scene, model);
+% state = Initialization(params, scene, model);
+state = Initialization_ra(params, scene, model);
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
