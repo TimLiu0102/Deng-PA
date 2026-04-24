@@ -22,7 +22,10 @@ if ~isfield(params, 'SA_step_phi') || isempty(params.SA_step_phi)
     params.SA_step_phi = 0.08;
 end
 if ~isfield(params, 'SA_step_W') || isempty(params.SA_step_W)
-    params.SA_step_W = 0.05;
+    params.SA_step_W = 0.02;
+end
+if ~isfield(params, 'SA_beta_W') || isempty(params.SA_beta_W)
+    params.SA_beta_W = 0.3;
 end
 
 % 纯启发式：初始点直接使用 state0，不做 AO_W 精修
@@ -114,8 +117,28 @@ for iter = 1:params.SA_max_iter
     else
         move_type = 'W';
 
+        % 纯启发式联合优化：W 不再做整矩阵高维随机扰动
+        % 改成单列信道引导扰动：每次只改一列，降低搜索维度并增强结构性
+        extra_ch = struct();
+        extra_ch.use_all = false;
+        ch_out = Channel_model('all_users', params, scene, state_try, extra_ch);
+        H = ch_out.H;
+
         W_try = state_try.W;
-        W_try = W_try + params.SA_step_W * (randn(size(W_try)) + 1j*randn(size(W_try)));
+        kcol = randi(size(W_try, 2));
+        wk = W_try(:, kcol);
+        hk = H(:, kcol);
+
+        if norm(hk) > 0
+            hk_dir = hk / norm(hk);
+            wk_try = (1 - params.SA_beta_W) * wk ...
+                   + params.SA_beta_W * hk_dir ...
+                   + params.SA_step_W * (randn(size(wk)) + 1j*randn(size(wk)));
+        else
+            wk_try = wk + params.SA_step_W * (randn(size(wk)) + 1j*randn(size(wk)));
+        end
+
+        W_try(:, kcol) = wk_try;
 
         p_try = real(trace(W_try * W_try'));
         if p_try > 0
