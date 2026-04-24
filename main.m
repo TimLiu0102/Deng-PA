@@ -18,7 +18,7 @@ params.K_serv = min(params.NRF, params.K_max);
 % 2) 几何参数
 params.Dx = 10;
 params.Dy = 10;
-params.d = 3.5;
+params.d = 3;
 params.Delta = 0.5;
 
 
@@ -90,7 +90,7 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'ao_final_w';   % 'ao_final_w' | 'w_only' | 'sa_joint'
+scheme_mode = 'sa_joint';   % 'ao_final_w' | 'w_only' | 'sa_joint'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
