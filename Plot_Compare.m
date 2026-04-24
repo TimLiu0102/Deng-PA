@@ -47,7 +47,7 @@ compare_result.schemes = schemes;
 % 图1：SNR 扫描
 if do_snr
     [mean_R, std_R, R_all] = run_sweep(base_params, schemes, snr_dB_vec, 'snr', MC);
-    figure;
+    figure('Name', 'Fig1_SNR');
     draw_mean_error_curve(snr_dB_vec, mean_R, std_R, schemes, 'SNR (dB)', 'Average spectral efficiency versus SNR');
 
     compare_result.snr = struct();
@@ -60,7 +60,7 @@ end
 % 图2：K 扫描
 if do_K
     [mean_R, std_R, R_all] = run_sweep(base_params, schemes, K_vec, 'K', MC);
-    figure;
+    figure('Name', 'Fig2_K');
     draw_mean_error_curve(K_vec, mean_R, std_R, schemes, 'Number of users K', 'Average spectral efficiency versus number of users');
 
     compare_result.K = struct();
@@ -73,7 +73,7 @@ end
 % 图3：N 扫描
 if do_N
     [mean_R, std_R, R_all] = run_sweep(base_params, schemes, N_vec, 'N', MC);
-    figure;
+    figure('Name', 'Fig3_N');
     draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Average spectral efficiency versus number of waveguides');
 
     compare_result.N = struct();
@@ -86,7 +86,7 @@ end
 % 图4：M 扫描
 if do_M
     [mean_R, std_R, R_all] = run_sweep(base_params, schemes, M_vec, 'M', MC);
-    figure;
+    figure('Name', 'Fig4_M');
     draw_mean_error_curve(M_vec, mean_R, std_R, schemes, 'Number of PAs per waveguide M', 'Average spectral efficiency versus number of PAs per waveguide');
 
     compare_result.M = struct();
@@ -99,7 +99,6 @@ end
 % 图5：收敛曲线
 if do_convergence
     conv_results = run_convergence_cases(base_params, schemes);
-    figure;
     draw_convergence(conv_results, schemes);
 
     compare_result.convergence = conv_results;
@@ -108,7 +107,7 @@ end
 % 图6：CDF
 if do_cdf
     rate_cells = collect_rate_cdf_data(base_params, schemes, MC);
-    figure;
+    figure('Name', 'Fig6_CDF');
     draw_rate_cdf(rate_cells, schemes);
 
     compare_result.cdf = struct();
@@ -121,7 +120,7 @@ if do_geometry
     seed_geo = base_params.seed + 10000*7 + 1000*1 + 100*idx_geo + 1;
     geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, seed_geo);
 
-    figure;
+    figure('Name', 'Fig7_Geometry');
     draw_geometry_case(geo_result);
 
     compare_result.geometry = geo_result;
@@ -448,23 +447,55 @@ end
 xlabel(x_label_text);
 ylabel('Average spectral efficiency (bit/s/Hz)');
 title(title_text);
-legend({schemes.name}, 'Location', 'best');
+legend({schemes.name}, 'Location', 'bestoutside');
 grid on;
 end
 
 function draw_convergence(conv_results, schemes)
-% 五种方案收敛曲线
+% 五种方案收敛曲线，使用 broken x-axis 思路压缩长迭代区间
+% 0~30 正常显示，30 之后压缩显示，避免 SA_joint 把 AO 曲线挤在左侧
+figure('Name', 'Fig5_Convergence_BrokenAxis');
+
+break_iter = 30;
+compress_ratio = 0.08;
+
 for s = 1:numel(schemes)
     r = conv_results{s};
-    it = 0:(numel(r)-1);
-    plot(it, r, '-o', 'LineWidth', 1.2);
+    it_real = 0:(numel(r)-1);
+
+    % 将真实迭代次数映射到显示用横坐标
+    it_plot = it_real;
+    idx = it_real > break_iter;
+    it_plot(idx) = break_iter + (it_real(idx) - break_iter) * compress_ratio;
+
+    plot(it_plot, r, '-o', 'LineWidth', 1.2);
     hold on;
 end
+
+% 设置横坐标刻度：显示真实迭代次数，但位置是压缩后的
+real_ticks = [0 10 20 30 100 200 300 400 500];
+plot_ticks = real_ticks;
+idx_tick = real_ticks > break_iter;
+plot_ticks(idx_tick) = break_iter + (real_ticks(idx_tick) - break_iter) * compress_ratio;
+
+set(gca, 'XTick', plot_ticks);
+set(gca, 'XTickLabel', string(real_ticks));
+
+% 在断轴位置画虚线
+yl = ylim;
+plot([break_iter break_iter], yl, 'k--', 'LineWidth', 1.0);
+ylim(yl);
+
 xlabel('Iteration index');
 ylabel('Spectral efficiency (bit/s/Hz)');
-title('Convergence behavior of different schemes');
-legend({schemes.name}, 'Location', 'best');
+title('Convergence behavior of different schemes with compressed x-axis');
+legend({schemes.name}, 'Location', 'bestoutside');
 grid on;
+
+% 在图中标注横坐标被压缩
+text(break_iter + 2, yl(1) + 0.08*(yl(2)-yl(1)), ...
+    'x-axis compressed after 30 iterations', ...
+    'FontSize', 9);
 end
 
 function draw_rate_cdf(rate_cells, schemes)
@@ -478,7 +509,7 @@ end
 xlabel('Per-user rate (bit/s/Hz)');
 ylabel('CDF');
 title('CDF of per-user rate');
-legend({schemes.name}, 'Location', 'best');
+legend({schemes.name}, 'Location', 'bestoutside');
 grid on;
 end
 
@@ -507,18 +538,31 @@ for n = 1:params_case.N
     plot(scene.xW(n)*ones(1,M), state.X(n,:), 'x');
 end
 
-% 最终PA朝向箭头（使用 theta）
+% 最终PA朝向箭头：画三维方向向量在 x-y 平面的投影
+% theta 是与 z 轴的夹角，phi 是 x-y 平面内的方位角
+% 因此方向向量为 [sin(theta)cos(phi), sin(theta)sin(phi), cos(theta)]
+% 二维几何图只显示 x-y 平面，所以取前两个分量
 x_pa = repmat(scene.xW(:), 1, M);
 x_pa = x_pa(:);
 y_pa = state.X(:);
-u = cos(state.theta(:));
-v = sin(state.theta(:));
-quiver(x_pa, y_pa, u, v, 0.4);
+
+theta_vec = state.theta(:);
+phi_vec = state.phi(:);
+
+u = sin(theta_vec) .* cos(phi_vec);
+v = sin(theta_vec) .* sin(phi_vec);
+
+% 只保留方向，统一箭头长度，避免箭头长短影响观察
+uv_norm = sqrt(u.^2 + v.^2);
+u = u ./ (uv_norm + eps);
+v = v ./ (uv_norm + eps);
+
+quiver(x_pa, y_pa, u, v, 0.6, 'LineWidth', 0.8);
 
 xlabel('x (m)');
 ylabel('y (m)');
 title('Geometry and final PA/user configuration');
-legend({'All users', 'Served users', 'Waveguide', 'Initial PA', 'Final PA', 'PA orientation'}, 'Location', 'best');
+legend({'All users', 'Served users', 'Waveguide', 'Initial PA', 'Final PA', 'PA orientation'}, 'Location', 'eastoutside');
 grid on;
 end
 
