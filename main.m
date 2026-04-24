@@ -75,12 +75,15 @@ params.max_swaps = 1;
 params.T_max = 30;
 params.eps_outer = 1e-4;
 
+% 9.5) SA 联合优化参数
+params.SA_max_iter = params.T_max;
+
 % 10) 随机种子
 params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'sa_joint';   % 'ao_final_w' | 'w_only' | 'sa_joint'
+scheme_mode = 'ao_final_w';   % 'ao_final_w' | 'w_only' | 'sa_joint'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
