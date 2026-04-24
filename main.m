@@ -77,6 +77,11 @@ params.eps_outer = 1e-4;
 
 % 9.5) SA 联合优化参数
 params.SA_max_iter = params.T_max;
+params.SA_T0 = 0.1;
+params.SA_alpha = 0.95;
+params.SA_step_X = 0.05;
+params.SA_step_theta = 0.02;
+params.SA_step_phi = 0.05;
 
 % 10) 随机种子
 params.seed = 7;
