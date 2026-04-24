@@ -90,8 +90,8 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-state = Initialization(params, scene, model);
-% state = Initialization_ra(params, scene, model);
+% state = Initialization(params, scene, model);
+state = Initialization_ra(params, scene, model);
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
