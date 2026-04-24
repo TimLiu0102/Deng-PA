@@ -82,7 +82,8 @@ params.SA_alpha = 0.985;
 params.SA_step_X = 0.5;
 params.SA_step_theta = 0.08;
 params.SA_step_phi = 0.08;
-params.SA_step_W = 0.05;
+params.SA_step_W = 0.02;
+params.SA_beta_W = 0.3;
 
 % 10) 随机种子
 params.seed = 7;
