@@ -75,8 +75,14 @@ params.max_swaps = 1;
 params.T_max = 30;
 params.eps_outer = 1e-4;
 
-% 9.5) SA 联合优化参数
-params.SA_max_iter = params.T_max;
+% 9.5) SA 联合优化参数（纯启发式联合搜索）
+params.SA_max_iter = 500;
+params.SA_T0 = 1.0;
+params.SA_alpha = 0.985;
+params.SA_step_X = 0.5;
+params.SA_step_theta = 0.08;
+params.SA_step_phi = 0.08;
+params.SA_step_W = 0.05;
 
 % 10) 随机种子
 params.seed = 7;
