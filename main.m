@@ -82,7 +82,8 @@ params.SA_alpha = 0.985;
 params.SA_step_X = 0.5;
 params.SA_step_theta = 0.08;
 params.SA_step_phi = 0.08;
-params.SA_step_W = 0.05;
+params.SA_step_W = 0.02;
+params.SA_beta_W = 0.3;
 
 % 10) 随机种子
 params.seed = 7;
@@ -283,7 +284,7 @@ else
     error('main: unsupported scheme_mode');
 end
 
-%% 第7部分：整理输出并调用结果显示模块
+%% 第7部分：整理输出
 result = struct();
 result.state = state;
 result.history = history;
@@ -291,6 +292,11 @@ result.params = params;
 result.scene = scene;
 result.model = model;
 
-Print_and_Plot(params, scene, model, result);
+%% 第8部分：结果显示方式切换
+% 方式1：新的论文式多方案对比图（默认启用）
+Plot_Compare(params);
+
+% 方式2：原来的单次仿真结果图
+% Print_and_Plot(params, scene, model, result);
 
 end
