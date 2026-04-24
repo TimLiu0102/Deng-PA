@@ -1,6 +1,26 @@
 function [state_best, history_sa] = SA_joint(params, scene, model, state0)
 % SA_joint：基于模拟退火的联合启发式优化（联合扰动 S/X/theta/phi）
 
+% 兼容：若主脚本未显式提供 SA 参数，则使用默认值
+if ~isfield(params, 'SA_max_iter') || isempty(params.SA_max_iter)
+    params.SA_max_iter = 30;
+end
+if ~isfield(params, 'SA_T0') || isempty(params.SA_T0)
+    params.SA_T0 = 0.1;
+end
+if ~isfield(params, 'SA_alpha') || isempty(params.SA_alpha)
+    params.SA_alpha = 0.95;
+end
+if ~isfield(params, 'SA_step_X') || isempty(params.SA_step_X)
+    params.SA_step_X = 0.05;
+end
+if ~isfield(params, 'SA_step_theta') || isempty(params.SA_step_theta)
+    params.SA_step_theta = 0.02;
+end
+if ~isfield(params, 'SA_step_phi') || isempty(params.SA_step_phi)
+    params.SA_step_phi = 0.05;
+end
+
 state_cur = state0;
 state_cur.W = AO_W(params, scene, model, state_cur);
 R_cur = Signal_model('sum_rate', params, scene, state_cur, []);
@@ -31,7 +51,7 @@ history_sa.theta_cells = cell(params.SA_max_iter, 1);
 history_sa.phi_cells = cell(params.SA_max_iter, 1);
 
 for iter = 1:params.SA_max_iter
-    T = params.SA_T0 * params.SA_alpha^(iter - 1);
+    T = max(params.SA_T0 * params.SA_alpha^(iter - 1), eps);
     state_try = state_cur;
 
     r_move = randi(4);
