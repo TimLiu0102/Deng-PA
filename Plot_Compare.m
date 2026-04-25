@@ -29,7 +29,7 @@ if strcmp(plot_mode, 'debug')
     N_vec = [4 8];
     M_vec = [4 6];
 else
-    MC = 3;
+    MC = 5;
     snr_dB_vec = [-10 -5 0 5 10 15 20 25 30];
     K_vec = [8 16 24 32 48 64];
     N_vec = [2 4 6 8 10 12];
@@ -72,12 +72,25 @@ end
 
 % 图3：N 扫描
 if do_N
-    [mean_R, std_R, R_all] = run_sweep(base_params, schemes, N_vec, 'N', MC);
+    % N 扫描固定总候选用户数和服务用户数，只改变波导数 N
+    % 这里固定 K=32，与 main.m 的基准场景一致
+    K_fixed_N = 32;
+    K_serv_fixed_N = base_params.K_serv;
+
+    params_N = base_params;
+    params_N.K = K_fixed_N;
+    params_N.NRF = K_serv_fixed_N;
+    params_N.K_max = K_serv_fixed_N;
+    params_N.K_serv = min(params_N.NRF, params_N.K_max);
+
+    [mean_R, std_R, R_all] = run_sweep(params_N, schemes, N_vec, 'N', MC);
     figure('Name', 'Fig3_N');
-    draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Average spectral efficiency versus number of waveguides');
+    draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Average spectral efficiency versus number of waveguides, K=32');
 
     compare_result.N = struct();
     compare_result.N.x = N_vec;
+    compare_result.N.K_fixed = K_fixed_N;
+    compare_result.N.K_serv_fixed = params_N.K_serv;
     compare_result.N.mean_R = mean_R;
     compare_result.N.std_R = std_R;
     compare_result.N.R_all = R_all;
@@ -197,10 +210,9 @@ if strcmp(sweep_type, 'snr')
 elseif strcmp(sweep_type, 'K')
     params_case.K = x_value;
 elseif strcmp(sweep_type, 'N')
+    % N 扫描只改变波导数 N
+    % 总候选用户数 K 和服务用户数 K_serv 在调用前固定
     params_case.N = x_value;
-    params_case.NRF = x_value;
-    params_case.K_max = x_value;
-    params_case.K_serv = min(params_case.NRF, params_case.K_max);
 elseif strcmp(sweep_type, 'M')
     params_case.M = x_value;
 else
