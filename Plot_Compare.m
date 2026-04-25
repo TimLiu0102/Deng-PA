@@ -12,9 +12,10 @@ do_snr         = true;   % 图1：频谱效率 vs SNR
 do_K           = true;   % 图2：频谱效率 vs 用户数 K
 do_N           = true;   % 图3：频谱效率 vs 波导数 N
 do_M           = true;   % 图4：频谱效率 vs 每条波导 PA 数 M
-do_convergence = true;   % 图5：收敛曲线
-do_cdf         = true;   % 图6：Per-user rate CDF
-do_geometry    = true;   % 图7：几何图
+do_Dy          = true;   % 图5：频谱效率 vs 波导长度 / PA可移动范围 Dy
+do_convergence = true;   % 图6：收敛曲线
+do_cdf         = true;   % 图7：Per-user rate CDF
+do_geometry    = true;   % 图8：几何图
 
 fprintf('\n================ 多方案对比绘图 ================\n');
 
@@ -28,12 +29,14 @@ if strcmp(plot_mode, 'debug')
     K_vec = [16 32];
     N_vec = [4 8];
     M_vec = [4 6];
+    Dy_vec = [6 10];
 else
     MC = 5;
     snr_dB_vec = [-10 -5 0 5 10 15 20 25 30];
     K_vec = [8 16 24 32 48 64];
     N_vec = [2 4 6 8 10 12];
     M_vec = [2 4 6 8];
+    Dy_vec = [4 6 8 10 12 15 20];
 end
 
 % 保证 K 不小于 K_serv
@@ -109,7 +112,25 @@ if do_M
     compare_result.M.R_all = R_all;
 end
 
-% 图5：收敛曲线
+% 图5：Dy 扫描
+if do_Dy
+    % Dy 表示波导长度，同时也是 PA 沿 y 方向的可移动范围
+    % 用户区域保持 base_params.user_y_rng 不变，只改变 PA 可移动范围
+    [mean_R, std_R, R_all] = run_sweep(base_params, schemes, Dy_vec, 'Dy', MC);
+
+    figure('Name', 'Fig5_Dy', 'Position', [100 100 760 520]);
+    draw_mean_error_curve(Dy_vec, mean_R, std_R, schemes, ...
+        'Waveguide length / movable range D_y (m)', ...
+        'Spectral Efficiency vs. Waveguide Length');
+
+    compare_result.Dy = struct();
+    compare_result.Dy.x = Dy_vec;
+    compare_result.Dy.mean_R = mean_R;
+    compare_result.Dy.std_R = std_R;
+    compare_result.Dy.R_all = R_all;
+end
+
+% 图6：收敛曲线
 if do_convergence
     conv_results = run_convergence_cases(base_params, schemes);
     draw_convergence(conv_results, schemes);
@@ -117,7 +138,7 @@ if do_convergence
     compare_result.convergence = conv_results;
 end
 
-% 图6：CDF
+% 图7：CDF
 if do_cdf
     rate_cells = collect_rate_cdf_data(base_params, schemes, MC);
     figure('Name', 'Fig6_CDF', 'Position', [100 100 760 520]);
@@ -127,7 +148,7 @@ if do_cdf
     compare_result.cdf.rate_cells = rate_cells;
 end
 
-% 图7：几何图（只画“所提初始化 + 所提优化算法”）
+% 图8：几何图（只画“所提初始化 + 所提优化算法”）
 if do_geometry
     idx_geo = 2;
     seed_geo = base_params.seed + 10000*7 + 1000*1 + 100*idx_geo + 1;
@@ -215,6 +236,10 @@ elseif strcmp(sweep_type, 'N')
     params_case.N = x_value;
 elseif strcmp(sweep_type, 'M')
     params_case.M = x_value;
+elseif strcmp(sweep_type, 'Dy')
+    % Dy 表示波导长度，也是 PA 的可移动范围
+    % 这里只改变 Dy，不改变用户分布区域
+    params_case.Dy = x_value;
 else
     error('make_params_for_sweep: unsupported sweep_type');
 end
@@ -593,6 +618,8 @@ elseif strcmp(sweep_type, 'N')
     sweep_id = 3;
 elseif strcmp(sweep_type, 'M')
     sweep_id = 4;
+elseif strcmp(sweep_type, 'Dy')
+    sweep_id = 8;
 else
     sweep_id = 9;
 end

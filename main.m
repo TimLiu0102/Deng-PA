@@ -90,7 +90,7 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'sa_joint';   % 'ao_final_w' | 'w_only' | 'sa_joint'
+scheme_mode = 'hg_multiuser';   % 'ao_final_w' | 'w_only' | 'sa_joint' | 'hg_multiuser'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
@@ -280,6 +280,38 @@ elseif strcmp(scheme_mode, 'sa_joint')
     end
     history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
 
+elseif strcmp(scheme_mode, 'hg_multiuser')
+    [state_best, history_hg] = HG_multiuser(params, scene, model, state);
+
+    state = state_best;
+    history = history_hg;
+
+    if ~isfield(history, 'DEBUG_X_cells')
+        history.DEBUG_X_cells = {};
+    end
+    if ~isfield(history, 'X_update_mode')
+        history.X_update_mode = 'hungarian_greedy';
+    end
+    if ~isfield(history, 'R_after_W')
+        history.R_after_W = [];
+    end
+    if ~isfield(history, 'R_after_angle')
+        history.R_after_angle = [];
+    end
+    if ~isfield(history, 'R_after_X')
+        history.R_after_X = [];
+    end
+    if ~isfield(history, 'R_after_S')
+        history.R_after_S = [];
+    end
+    if ~isfield(history, 'R_before_final_W')
+        history.R_before_final_W = [];
+    end
+    if ~isfield(history, 'R_after_final_W')
+        history.R_after_final_W = [];
+    end
+    history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
+
 else
     error('main: unsupported scheme_mode');
 end
@@ -294,10 +326,10 @@ result.model = model;
 
 %% 第8部分：结果显示方式切换
 % 方式1：新的论文式多方案对比图（默认启用）
-compare_result = Plot_Compare(params);
-result.compare_result = compare_result;
+% compare_result = Plot_Compare(params);
+% result.compare_result = compare_result;
 
 % 方式2：原来的单次仿真结果图
-% Print_and_Plot(params, scene, model, result);
+Print_and_Plot(params, scene, model, result);
 
 end
