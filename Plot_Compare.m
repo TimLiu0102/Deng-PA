@@ -5,7 +5,7 @@ function compare_result = Plot_Compare(base_params)
 % 不改已有算法文件，只在本文件内部重复调用现有初始化、AO模块和SA模块
 
 %% ======================== 画图模式切换 ========================
-plot_mode = 'debug';   % 'debug' 或 'full'
+plot_mode = 'full';   % 'debug' 或 'full'
 
 %% ======================== 图形开关 ========================
 do_snr         = true;   % 图1：频谱效率 vs SNR
