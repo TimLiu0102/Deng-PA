@@ -47,8 +47,8 @@ compare_result.schemes = schemes;
 % 图1：SNR 扫描
 if do_snr
     [mean_R, std_R, R_all] = run_sweep(base_params, schemes, snr_dB_vec, 'snr', MC);
-    figure('Name', 'Fig1_SNR');
-    draw_mean_error_curve(snr_dB_vec, mean_R, std_R, schemes, 'SNR (dB)', 'Average spectral efficiency versus SNR');
+    figure('Name', 'Fig1_SNR', 'Position', [100 100 760 520]);
+    draw_mean_error_curve(snr_dB_vec, mean_R, std_R, schemes, 'SNR (dB)', 'Spectral Efficiency vs. SNR');
 
     compare_result.snr = struct();
     compare_result.snr.x = snr_dB_vec;
@@ -60,8 +60,8 @@ end
 % 图2：K 扫描
 if do_K
     [mean_R, std_R, R_all] = run_sweep(base_params, schemes, K_vec, 'K', MC);
-    figure('Name', 'Fig2_K');
-    draw_mean_error_curve(K_vec, mean_R, std_R, schemes, 'Number of users K', 'Average spectral efficiency versus number of users');
+    figure('Name', 'Fig2_K', 'Position', [100 100 760 520]);
+    draw_mean_error_curve(K_vec, mean_R, std_R, schemes, 'Number of users K', 'Spectral Efficiency vs. Number of Users');
 
     compare_result.K = struct();
     compare_result.K.x = K_vec;
@@ -84,8 +84,8 @@ if do_N
     params_N.K_serv = min(params_N.NRF, params_N.K_max);
 
     [mean_R, std_R, R_all] = run_sweep(params_N, schemes, N_vec, 'N', MC);
-    figure('Name', 'Fig3_N');
-    draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Average spectral efficiency versus number of waveguides, K=32');
+    figure('Name', 'Fig3_N', 'Position', [100 100 760 520]);
+    draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Spectral Efficiency vs. Number of Waveguides');
 
     compare_result.N = struct();
     compare_result.N.x = N_vec;
@@ -99,8 +99,8 @@ end
 % 图4：M 扫描
 if do_M
     [mean_R, std_R, R_all] = run_sweep(base_params, schemes, M_vec, 'M', MC);
-    figure('Name', 'Fig4_M');
-    draw_mean_error_curve(M_vec, mean_R, std_R, schemes, 'Number of PAs per waveguide M', 'Average spectral efficiency versus number of PAs per waveguide');
+    figure('Name', 'Fig4_M', 'Position', [100 100 760 520]);
+    draw_mean_error_curve(M_vec, mean_R, std_R, schemes, 'Number of PAs per waveguide M', 'Spectral Efficiency vs. Number of PAs');
 
     compare_result.M = struct();
     compare_result.M.x = M_vec;
@@ -120,7 +120,7 @@ end
 % 图6：CDF
 if do_cdf
     rate_cells = collect_rate_cdf_data(base_params, schemes, MC);
-    figure('Name', 'Fig6_CDF');
+    figure('Name', 'Fig6_CDF', 'Position', [100 100 760 520]);
     draw_rate_cdf(rate_cells, schemes);
 
     compare_result.cdf = struct();
@@ -133,7 +133,7 @@ if do_geometry
     seed_geo = base_params.seed + 10000*7 + 1000*1 + 100*idx_geo + 1;
     geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, seed_geo);
 
-    figure('Name', 'Fig7_Geometry');
+    figure('Name', 'Fig7_Geometry', 'Position', [100 100 760 520]);
     draw_geometry_case(geo_result);
 
     compare_result.geometry = geo_result;
@@ -146,23 +146,23 @@ function schemes = build_scheme_list()
 % 方案列表：五种对比方案
 schemes = struct('name', {}, 'init_mode', {}, 'alg_mode', {});
 
-schemes(1).name = 'Random init + Proposed AO';
+schemes(1).name = 'Rand init + AO';
 schemes(1).init_mode = 'random';
 schemes(1).alg_mode = 'proposed';
 
-schemes(2).name = 'Proposed init + Proposed AO';
+schemes(2).name = 'Prop init + AO';
 schemes(2).init_mode = 'proposed';
 schemes(2).alg_mode = 'proposed';
 
-schemes(3).name = 'Random init + W only';
+schemes(3).name = 'Rand init + W';
 schemes(3).init_mode = 'random';
 schemes(3).alg_mode = 'w_only';
 
-schemes(4).name = 'Proposed init + W only';
+schemes(4).name = 'Prop init + W';
 schemes(4).init_mode = 'proposed';
 schemes(4).alg_mode = 'w_only';
 
-schemes(5).name = 'Random init + SA joint';
+schemes(5).name = 'Rand init + SA';
 schemes(5).init_mode = 'random';
 schemes(5).alg_mode = 'sa_joint';
 end
@@ -453,23 +453,24 @@ end
 function draw_mean_error_curve(x_vec, mean_R, std_R, schemes, x_label_text, title_text)
 % 均值 + 标准差误差棒图
 for s = 1:numel(schemes)
-    errorbar(x_vec, mean_R(:,s), std_R(:,s), '-o', 'LineWidth', 1.2);
+    plot(x_vec, mean_R(:,s), '-o', 'LineWidth', 1.4, 'MarkerSize', 5);
     hold on;
 end
 xlabel(x_label_text);
 ylabel('Average spectral efficiency (bit/s/Hz)');
-title(title_text);
-legend({schemes.name}, 'Location', 'bestoutside');
+title(title_text, 'FontSize', 11);
+legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
 grid on;
+set(gca, 'FontSize', 10);
 end
 
 function draw_convergence(conv_results, schemes)
 % 五种方案收敛曲线，使用 broken x-axis 思路压缩长迭代区间
 % 0~30 正常显示，30 之后压缩显示，避免 SA_joint 把 AO 曲线挤在左侧
-figure('Name', 'Fig5_Convergence_BrokenAxis');
+figure('Name', 'Fig5_Convergence_BrokenAxis', 'Position', [100 100 820 520]);
 
 break_iter = 30;
-compress_ratio = 0.08;
+compress_ratio = 0.15;
 
 for s = 1:numel(schemes)
     r = conv_results{s};
@@ -485,7 +486,7 @@ for s = 1:numel(schemes)
 end
 
 % 设置横坐标刻度：显示真实迭代次数，但位置是压缩后的
-real_ticks = [0 10 20 30 100 200 300 400 500];
+real_ticks = [0 10 20 30 100 300 500];
 plot_ticks = real_ticks;
 idx_tick = real_ticks > break_iter;
 plot_ticks(idx_tick) = break_iter + (real_ticks(idx_tick) - break_iter) * compress_ratio;
@@ -500,14 +501,15 @@ ylim(yl);
 
 xlabel('Iteration index');
 ylabel('Spectral efficiency (bit/s/Hz)');
-title('Convergence behavior of different schemes with compressed x-axis');
-legend({schemes.name}, 'Location', 'bestoutside');
+title('Convergence with Compressed x-axis', 'FontSize', 11);
+legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
 grid on;
 
 % 在图中标注横坐标被压缩
-text(break_iter + 2, yl(1) + 0.08*(yl(2)-yl(1)), ...
-    'x-axis compressed after 30 iterations', ...
-    'FontSize', 9);
+text(break_iter + 2, yl(2) - 0.08*(yl(2)-yl(1)), ...
+    'compressed after 30', ...
+    'FontSize', 8);
+set(gca, 'FontSize', 10);
 end
 
 function draw_rate_cdf(rate_cells, schemes)
@@ -520,9 +522,10 @@ for s = 1:numel(schemes)
 end
 xlabel('Per-user rate (bit/s/Hz)');
 ylabel('CDF');
-title('CDF of per-user rate');
-legend({schemes.name}, 'Location', 'bestoutside');
+title('CDF of Per-user Rate', 'FontSize', 11);
+legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
 grid on;
+set(gca, 'FontSize', 10);
 end
 
 function draw_geometry_case(geo_result)
@@ -573,9 +576,11 @@ quiver(x_pa, y_pa, u, v, 0.6, 'LineWidth', 0.8);
 
 xlabel('x (m)');
 ylabel('y (m)');
-title('Geometry and final PA/user configuration');
-legend({'All users', 'Served users', 'Waveguide', 'Initial PA', 'Final PA', 'PA orientation'}, 'Location', 'eastoutside');
+title('Final PA/User Configuration', 'FontSize', 11);
+legend({'All users', 'Served users', 'Waveguide', 'Initial PA', 'Final PA', 'PA orientation'}, ...
+    'Location', 'eastoutside', 'FontSize', 8);
 grid on;
+set(gca, 'FontSize', 10);
 end
 
 function sweep_id = get_sweep_id(sweep_type)
