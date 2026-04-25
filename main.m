@@ -310,6 +310,7 @@ elseif strcmp(scheme_mode, 'hg_multiuser')
     if ~isfield(history, 'R_after_final_W')
         history.R_after_final_W = [];
     end
+    history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
 
 else
     error('main: unsupported scheme_mode');
@@ -325,10 +326,10 @@ result.model = model;
 
 %% 第8部分：结果显示方式切换
 % 方式1：新的论文式多方案对比图（默认启用）
-compare_result = Plot_Compare(params);
-result.compare_result = compare_result;
+% compare_result = Plot_Compare(params);
+% result.compare_result = compare_result;
 
 % 方式2：原来的单次仿真结果图
-% Print_and_Plot(params, scene, model, result);
+Print_and_Plot(params, scene, model, result);
 
 end

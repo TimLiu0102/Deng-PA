@@ -105,7 +105,7 @@ U = Gopt;
 maxPairs = min([K_serv, size(U,1), size(U,2)]);
 
 if exist('matchpairs','file') == 2
-    [pairs, ~] = matchpairs(-U, -1e12, 'max');
+    [pairs, ~] = matchpairs(U, -1e12, 'max');
 else
     pairs = greedy_match(U, maxPairs);
 end
