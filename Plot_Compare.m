@@ -151,8 +151,12 @@ end
 % 图8：几何图（只画“所提初始化 + 所提优化算法”）
 if do_geometry
     idx_geo = 2;
-    seed_geo = base_params.seed + 10000*7 + 1000*1 + 100*idx_geo + 1;
-    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, seed_geo);
+    scene_seed = base_params.seed + 10000*7 + 1;
+    user_pos_pool = build_fixed_user_pool(base_params, 1, 'geometry', scene_seed);
+    scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
+    init_seed = base_params.seed + 20000*7 + 1;
+    alg_seed = base_params.seed + 30000*7 + 100*idx_geo + 1;
+    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, init_seed, alg_seed, scene_case);
 
     figure('Name', 'Fig7_Geometry', 'Position', [100 100 760 520]);
     draw_geometry_case(geo_result);
@@ -196,14 +200,21 @@ R_all = zeros(nx, ns, MC);
 
 sweep_id = get_sweep_id(sweep_type);
 
-for idx_x = 1:nx
-    x_val = x_vec(idx_x);
-    params_case = make_params_for_sweep(base_params, sweep_type, x_val);
+for idx_mc = 1:MC
+    % 同一个 MC 先生成固定用户池
+    scene_seed = base_params.seed + 10000*sweep_id + idx_mc;
+    user_pos_pool = build_fixed_user_pool(base_params, x_vec, sweep_type, scene_seed);
 
-    for idx_scheme = 1:ns
-        for idx_mc = 1:MC
-            seed_now = base_params.seed + 10000*sweep_id + 1000*idx_x + 100*idx_scheme + idx_mc;
-            out_case = run_one_case(params_case, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, seed_now);
+    % 同一个 MC 下，所有横坐标点和所有方案共用同一批用户
+    for idx_x = 1:nx
+        x_val = x_vec(idx_x);
+        params_case = make_params_for_sweep(base_params, sweep_type, x_val);
+        scene_case = build_scene_with_fixed_users(params_case, user_pos_pool);
+
+        for idx_scheme = 1:ns
+            init_seed = base_params.seed + 20000*sweep_id + 1000*idx_x + idx_mc;
+            alg_seed = base_params.seed + 30000*sweep_id + 1000*idx_x + 100*idx_scheme + idx_mc;
+            out_case = run_one_case(params_case, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
             R_all(idx_x, idx_scheme, idx_mc) = out_case.final_R;
         end
     end
@@ -245,13 +256,19 @@ else
 end
 end
 
-function out_case = run_one_case(params_case, init_mode, alg_mode, seed_now)
+function out_case = run_one_case(params_case, init_mode, alg_mode, init_seed, alg_seed, scene_in)
 % 单个实验：初始化 + 算法运行 + 指标整理
-rng(seed_now);
-scene = Channel_model('build_scene', params_case, [], [], []);
+if nargin >= 6 && ~isempty(scene_in)
+    scene = scene_in;
+else
+    rng(init_seed);
+    scene = Channel_model('build_scene', params_case, [], [], []);
+end
+
 model = Problem_formulation(params_case, scene);
 
 % 初始化方式
+rng(init_seed);
 if strcmp(init_mode, 'random')
     state = Initialization_ra(params_case, scene, model);
 else
@@ -260,6 +277,9 @@ end
 
 % 历史量初始化
 history = init_history(params_case, scene, state);
+
+% 算法内部随机性
+rng(alg_seed);
 
 % 算法模式
 if strcmp(alg_mode, 'proposed')
@@ -452,9 +472,14 @@ function conv_results = run_convergence_cases(base_params, schemes)
 ns = numel(schemes);
 conv_results = cell(ns,1);
 
+scene_seed = base_params.seed + 10000*5 + 1;
+user_pos_pool = build_fixed_user_pool(base_params, 1, 'convergence', scene_seed);
+scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
+
 for idx_scheme = 1:ns
-    seed_now = base_params.seed + 10000*5 + 1000*1 + 100*idx_scheme + 1;
-    out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, seed_now);
+    init_seed = base_params.seed + 20000*5 + 1;
+    alg_seed = base_params.seed + 30000*5 + 100*idx_scheme + 1;
+    out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
     conv_results{idx_scheme} = out_case.history.R_sum(:);
 end
 end
@@ -464,15 +489,44 @@ function rate_cells = collect_rate_cdf_data(base_params, schemes, MC)
 ns = numel(schemes);
 rate_cells = cell(ns,1);
 
-for idx_scheme = 1:ns
-    rates_all = [];
-    for idx_mc = 1:MC
-        seed_now = base_params.seed + 10000*6 + 1000*1 + 100*idx_scheme + idx_mc;
-        out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, seed_now);
-        rates_all = [rates_all; out_case.rates_final(:)]; %#ok<AGROW>
+for idx_mc = 1:MC
+    scene_seed = base_params.seed + 10000*6 + idx_mc;
+    user_pos_pool = build_fixed_user_pool(base_params, 1, 'cdf', scene_seed);
+    scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
+
+    for idx_scheme = 1:ns
+        init_seed = base_params.seed + 20000*6 + idx_mc;
+        alg_seed = base_params.seed + 30000*6 + 100*idx_scheme + idx_mc;
+        out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
+        rate_cells{idx_scheme} = [rate_cells{idx_scheme}; out_case.rates_final(:)]; %#ok<AGROW>
     end
-    rate_cells{idx_scheme} = rates_all;
 end
+end
+
+function user_pos_pool = build_fixed_user_pool(base_params, x_vec, sweep_type, scene_seed)
+% 同一个 MC 下生成固定用户池
+params_pool = base_params;
+
+if strcmp(sweep_type, 'K')
+    params_pool.K = max(x_vec);
+else
+    params_pool.K = base_params.K;
+end
+
+rng(scene_seed);
+scene_pool = Channel_model('build_scene', params_pool, [], [], []);
+user_pos_pool = scene_pool.user_pos;
+end
+
+function scene_case = build_scene_with_fixed_users(params_case, user_pos_pool)
+% 按当前 params_case 生成波导几何，再覆盖用户位置
+scene_case = Channel_model('build_scene', params_case, [], [], []);
+
+K_case = params_case.K;
+scene_case.user_pos = user_pos_pool(:, 1:K_case);
+scene_case.K = K_case;
+scene_case.M = params_case.M;
+scene_case.N = params_case.N;
 end
 
 function draw_mean_error_curve(x_vec, mean_R, std_R, schemes, x_label_text, title_text)
