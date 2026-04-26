@@ -35,6 +35,7 @@ DEBUG_X_waveguide = struct();
 DEBUG_X_waveguide.DEBUG_X_iters = cell(params.I_X,1);
 DEBUG_X_waveguide.DEBUG_X_g_vec = cell(params.I_X,1);
 DEBUG_X_waveguide.DEBUG_X_d_vec = cell(params.I_X,1);
+DEBUG_X_waveguide.DEBUG_X_d_norm_raw = nan(params.I_X,1);
 DEBUG_X_waveguide.DEBUG_X_R_old = nan(params.I_X,1);
 DEBUG_X_waveguide.DEBUG_X_R_trial = nan(params.I_X,1);
 %% ======================== DEBUG_X END ==========================
@@ -50,6 +51,15 @@ for it = 1:params.I_X
     % two-loop recursion 计算 quasi-Newton ascent 方向 d = H_k g_k
     d_vec = compute_lbfgs_direction(g_vec, s_hist, y_hist);
 
+    % ======================== DIRECTION SCALE CONTROL START ========================
+    % d_vec 的原始尺度来自数值梯度/L-BFGS，可能非常大。
+    % 这里仅保留方向，将其归一化，使 line_search_alpha0 近似表示本轮最大移动距离。
+    d_norm_raw = norm(d_vec);
+    if d_norm_raw > 0
+        d_vec = d_vec / d_norm_raw;
+    end
+    % ======================== DIRECTION SCALE CONTROL END ==========================
+
     % 回溯线搜索：X_trial = Projection(X + alpha*d)，以真实sum rate是否提升为准
     [x_trial, R_trial, DEBUG_X_linesearch] = line_search_position(n, x_cur, d_vec, X_cur, params, scene, state, R_old);
 
@@ -57,6 +67,7 @@ for it = 1:params.I_X
     DEBUG_X_waveguide.DEBUG_X_iters{it,1} = DEBUG_X_linesearch;
     DEBUG_X_waveguide.DEBUG_X_g_vec{it,1} = g_vec;
     DEBUG_X_waveguide.DEBUG_X_d_vec{it,1} = d_vec;
+    DEBUG_X_waveguide.DEBUG_X_d_norm_raw(it,1) = d_norm_raw;
     DEBUG_X_waveguide.DEBUG_X_R_old(it,1) = R_old;
     DEBUG_X_waveguide.DEBUG_X_R_trial(it,1) = R_trial;
     %% ======================== DEBUG_X END ==========================

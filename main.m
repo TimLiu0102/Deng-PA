@@ -65,11 +65,18 @@ params.I_X = 6;
 params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
-params.T_S = 2;
-params.L_in = 2;
-params.L_out = 4;
-params.eps_S = 1e-5;
-params.max_swaps = 1;
+% 调试版：放宽 S 块搜索范围，观察用户集合是否能够发生交换
+params.T_S = 1;                         % 每轮都尝试更新用户集合
+params.L_in = params.K_serv;            % 当前服务用户全部作为潜在被替换用户
+params.L_out = 2 * params.K_serv;       % 从候选池外部取更多强候选
+params.eps_S = 0;                       % 只要不下降就接受
+params.max_swaps = 1;                   % 调试时先限制每轮1次swap，避免reW过慢
+
+% S 块候选评价方式
+% 'fixedW'：论文版，候选 swap 固定当前 W 评价；
+% 'reW'：调试版，候选 swap 后临时重新 WMMSE 评价。
+params.S_eval_mode = 'reW';
+params.DEBUG_S = true;
 
 % 9) 外层停止参数
 params.T_max = 30;
@@ -97,8 +104,17 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-% state = Initialization(params, scene, model);
-state = Initialization_ra(params, scene, model);
+init_mode = 'margin';   % 'paper' | 'margin' | 'random'
+
+if strcmp(init_mode, 'paper')
+    state = Initialization(params, scene, model);
+elseif strcmp(init_mode, 'margin')
+    state = Initialization_margin(params, scene, model);
+elseif strcmp(init_mode, 'random')
+    state = Initialization_ra(params, scene, model);
+else
+    error('main: unsupported init_mode');
+end
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
@@ -141,11 +157,14 @@ history.swap_flag = false;
 
 %% 第6部分：根据 scheme_mode 执行算法
 if strcmp(scheme_mode, 'ao_final_w')
-    % 外层交替优化主循环（固定顺序）
+    % 外层交替优化主循环：W -> angle -> X -> S
     for t = 1:params.T_max
         % 当前外层迭代编号，供 AO_S 周期触发判断
         state.t = t;
-        R_after_W = R_old;
+
+        % 1) 更新 W：固定 (S,X,theta,phi)，用 WMMSE 更新预编码矩阵
+        state.W = AO_W(params, scene, model, state);
+        R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
         % 2) 更新角度
         [state.theta, state.phi] = AO_angle(params, scene, model, state);
@@ -160,6 +179,8 @@ if strcmp(scheme_mode, 'ao_final_w')
         R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
         % 4) 更新用户集合
+        % 按论文思路，S 候选交换评价时固定当前 W，不对每个候选重新 WMMSE；
+        % 若发生用户交换，新 W 会在下一轮 W 子问题中重新适配。
         [state.S, state.swap_flag] = AO_S(params, scene, model, state);
         % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
         R_after_S = Signal_model('sum_rate', params, scene, state, []);
