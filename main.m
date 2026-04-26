@@ -74,7 +74,7 @@ params.T_S = 1;                         % 每轮都更新用户集合
 params.L_in = params.K_serv;            % 当前所有服务用户都可被替换
 params.L_out = params.K;                % 外部候选尽量多取，实际受 C\S 限制
 params.eps_S = 0;                       % 只要不下降就接受
-params.max_swaps = params.K_serv;       % 一轮最多允许 K_serv 次 single-swap
+params.max_swaps = 1;                   % reW 调试时先每轮只允许一次 swap，避免多次交换来回震荡
 
 % S 块候选评价方式
 % 'fixedW'：论文版，候选 swap 固定当前 W 评价；
@@ -185,7 +185,7 @@ if strcmp(scheme_mode, 'ao_final_w')
         % 4) 更新用户集合
         % 按论文思路，S 候选交换评价时固定当前 W，不对每个候选重新 WMMSE；
         % 若发生用户交换，新 W 会在下一轮 W 子问题中重新适配。
-        [state.S, state.swap_flag] = AO_S(params, scene, model, state);
+        [state.S, state.swap_flag, state.W] = AO_S(params, scene, model, state);
         % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
         R_after_S = Signal_model('sum_rate', params, scene, state, []);
 

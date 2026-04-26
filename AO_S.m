@@ -1,4 +1,4 @@
-function [S_new, swap_flag] = AO_S(params, scene, model, state)
+function [S_new, swap_flag, W_new] = AO_S(params, scene, model, state)
 % AO_S：固定 (X,W,theta,phi) 下，按 restricted single-swap 更新用户集 S
 
 if nargin < 3
@@ -7,6 +7,7 @@ end
 
 S_new = state.S(:).';
 swap_flag = false;
+W_new = state.W;
 
 %% 1) 周期性触发规则：仅在 mod(t, T_S)==0 时更新
 if ~isfield(state,'t')
@@ -27,6 +28,7 @@ end
 for iter_swap = 1:max_swaps
     state_now = state;
     state_now.S = S_new;
+    state_now.W = W_new;
 
     % 2) 当前服务用户个体速率（顺序与 S_new 一致）
     rates = get_current_individual_rates(params, scene, state_now);
@@ -50,6 +52,7 @@ for iter_swap = 1:max_swaps
     best_pos = [];
     best_user_in = [];
     best_user_out = [];
+    best_W = W_new;
 
     for a = 1:numel(idx_weak)
         pos_in_S = idx_weak(a);
@@ -58,7 +61,7 @@ for iter_swap = 1:max_swaps
         for b = 1:numel(J_strong)
             user_out = J_strong(b);
 
-            [S_candidate, delta_val] = evaluate_single_swap( ...
+            [S_candidate, delta_val, W_candidate] = evaluate_single_swap( ...
                 params, scene, model, state_now, S_new, pos_in_S, user_in, user_out, R_base);
 
             if delta_val > best_delta
@@ -66,7 +69,8 @@ for iter_swap = 1:max_swaps
                 best_pos = pos_in_S;
                 best_user_in = user_in;
                 best_user_out = user_out;
-                S_best = S_candidate; %#ok<NASGU>
+                S_best = S_candidate;
+                best_W = W_candidate;
             end
         end
     end
@@ -79,12 +83,14 @@ for iter_swap = 1:max_swaps
 
     % 7) best-improvement 接受准则
     if best_delta >= params.eps_S
-        S_new = apply_single_swap(S_new, best_pos, best_user_in, best_user_out);
+        S_new = S_best;
+        W_new = best_W;
         swap_flag = true;
 
         % 保证不重复且长度不变
         if numel(unique(S_new)) ~= numel(S_new)
             S_new = state_now.S;
+            W_new = state_now.W;
             break;
         end
     else
@@ -123,7 +129,7 @@ L = min(L_out, numel(outside));
 J_strong = outside(idx(1:L));
 end
 
-function [S_candidate, delta_val] = evaluate_single_swap(params, scene, model, state_now, S_now, pos_in_S, user_in, user_out, R_base)
+function [S_candidate, delta_val, W_candidate] = evaluate_single_swap(params, scene, model, state_now, S_now, pos_in_S, user_in, user_out, R_base)
 % 单交换候选评价：可选 fixedW / reW
 S_candidate = S_now;
 if S_candidate(pos_in_S) ~= user_in
@@ -134,10 +140,12 @@ S_candidate(pos_in_S) = user_out;
 
 state_candidate = state_now;
 state_candidate.S = S_candidate;
+W_candidate = state_now.W;
 
 if isfield(params, 'S_eval_mode') && strcmp(params.S_eval_mode, 'reW')
     % 调试版：候选用户集合变化后，重新用 WMMSE 适配 W
     state_candidate.W = AO_W(params, scene, model, state_candidate);
+    W_candidate = state_candidate.W;
 end
 
 R_candidate = Signal_model('sum_rate', params, scene, state_candidate, struct());
