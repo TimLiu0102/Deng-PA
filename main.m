@@ -97,8 +97,17 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-% state = Initialization(params, scene, model);
-state = Initialization_ra(params, scene, model);
+init_mode = 'margin';   % 'paper' | 'margin' | 'random'
+
+if strcmp(init_mode, 'paper')
+    state = Initialization(params, scene, model);
+elseif strcmp(init_mode, 'margin')
+    state = Initialization_margin(params, scene, model);
+elseif strcmp(init_mode, 'random')
+    state = Initialization_ra(params, scene, model);
+else
+    error('main: unsupported init_mode');
+end
 
 if ~isfield(state, 'swap_flag')
     state.swap_flag = false;
@@ -141,11 +150,14 @@ history.swap_flag = false;
 
 %% 第6部分：根据 scheme_mode 执行算法
 if strcmp(scheme_mode, 'ao_final_w')
-    % 外层交替优化主循环（固定顺序）
+    % 外层交替优化主循环：W -> angle -> X -> S
     for t = 1:params.T_max
         % 当前外层迭代编号，供 AO_S 周期触发判断
         state.t = t;
-        R_after_W = R_old;
+
+        % 1) 更新 W：固定 (S,X,theta,phi)，用 WMMSE 更新预编码矩阵
+        state.W = AO_W(params, scene, model, state);
+        R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
         % 2) 更新角度
         [state.theta, state.phi] = AO_angle(params, scene, model, state);
@@ -160,6 +172,8 @@ if strcmp(scheme_mode, 'ao_final_w')
         R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
         % 4) 更新用户集合
+        % 按论文思路，S 候选交换评价时固定当前 W，不对每个候选重新 WMMSE；
+        % 若发生用户交换，新 W 会在下一轮 W 子问题中重新适配。
         [state.S, state.swap_flag] = AO_S(params, scene, model, state);
         % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
         R_after_S = Signal_model('sum_rate', params, scene, state, []);
