@@ -70,7 +70,13 @@ params.T_S = 1;                         % 每轮都尝试更新用户集合
 params.L_in = params.K_serv;            % 当前服务用户全部作为潜在被替换用户
 params.L_out = 2 * params.K_serv;       % 从候选池外部取更多强候选
 params.eps_S = 0;                       % 只要不下降就接受
-params.max_swaps = params.K_serv;       % 每轮最多允许多次 single-swap
+params.max_swaps = 1;                   % 调试时先限制每轮1次swap，避免reW过慢
+
+% S 块候选评价方式
+% 'fixedW'：论文版，候选 swap 固定当前 W 评价；
+% 'reW'：调试版，候选 swap 后临时重新 WMMSE 评价。
+params.S_eval_mode = 'reW';
+params.DEBUG_S = true;
 
 % 9) 外层停止参数
 params.T_max = 30;
