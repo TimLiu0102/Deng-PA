@@ -59,7 +59,7 @@ for iter_swap = 1:max_swaps
             user_out = J_strong(b);
 
             [S_candidate, delta_val] = evaluate_single_swap( ...
-                params, scene, model, state_now, S_new, pos_in_S, user_in, user_out, R_base);
+                params, scene, state_now, S_new, pos_in_S, user_in, user_out, R_base);
 
             if delta_val > best_delta
                 best_delta = delta_val;
@@ -69,12 +69,6 @@ for iter_swap = 1:max_swaps
                 S_best = S_candidate; %#ok<NASGU>
             end
         end
-    end
-
-    if isfield(params,'DEBUG_S') && params.DEBUG_S
-        fprintf('AO_S t=%d iter=%d mode=%s: |I|=%d, |J|=%d, best_delta=%.6e, swap=%d\\n', ...
-            t, iter_swap, get_S_eval_mode(params), numel(users_weak), numel(J_strong), ...
-            best_delta, best_delta >= params.eps_S);
     end
 
     % 7) best-improvement 接受准则
@@ -123,8 +117,7 @@ L = min(L_out, numel(outside));
 J_strong = outside(idx(1:L));
 end
 
-function [S_candidate, delta_val] = evaluate_single_swap(params, scene, model, state_now, S_now, pos_in_S, user_in, user_out, R_base)
-% 单交换候选评价：可选 fixedW / reW
+function [S_candidate, delta_val] = evaluate_single_swap(params, scene, state_now, S_now, pos_in_S, user_in, user_out, R_base)
 S_candidate = S_now;
 if S_candidate(pos_in_S) ~= user_in
     % 保证位置与用户对应一致
@@ -135,20 +128,8 @@ S_candidate(pos_in_S) = user_out;
 state_candidate = state_now;
 state_candidate.S = S_candidate;
 
-if isfield(params, 'S_eval_mode') && strcmp(params.S_eval_mode, 'reW')
-    % 调试版：候选用户集合变化后，重新用 WMMSE 适配 W
-    state_candidate.W = AO_W(params, scene, model, state_candidate);
-end
-
 R_candidate = Signal_model('sum_rate', params, scene, state_candidate, struct());
 delta_val = R_candidate - R_base;
-end
-
-function mode = get_S_eval_mode(params)
-mode = 'fixedW';
-if isfield(params,'S_eval_mode')
-    mode = params.S_eval_mode;
-end
 end
 
 function S_out = apply_single_swap(S_in, pos_in_S, user_in, user_out)
