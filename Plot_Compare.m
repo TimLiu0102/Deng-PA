@@ -154,8 +154,9 @@ if do_geometry
     scene_seed = base_params.seed + 10000*7 + 1;
     user_pos_pool = build_fixed_user_pool(base_params, 1, 'geometry', scene_seed);
     scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
-    alg_seed = base_params.seed + 10000*7 + 100*idx_geo + 1;
-    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, alg_seed, scene_case);
+    init_seed = base_params.seed + 20000*7 + 1;
+    alg_seed = base_params.seed + 30000*7 + 100*idx_geo + 1;
+    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, init_seed, alg_seed, scene_case);
 
     figure('Name', 'Fig7_Geometry', 'Position', [100 100 760 520]);
     draw_geometry_case(geo_result);
@@ -211,8 +212,9 @@ for idx_mc = 1:MC
         scene_case = build_scene_with_fixed_users(params_case, user_pos_pool);
 
         for idx_scheme = 1:ns
-            alg_seed = base_params.seed + 10000*sweep_id + 1000*idx_x + 100*idx_scheme + idx_mc;
-            out_case = run_one_case(params_case, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, alg_seed, scene_case);
+            init_seed = base_params.seed + 20000*sweep_id + 1000*idx_x + idx_mc;
+            alg_seed = base_params.seed + 30000*sweep_id + 1000*idx_x + 100*idx_scheme + idx_mc;
+            out_case = run_one_case(params_case, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
             R_all(idx_x, idx_scheme, idx_mc) = out_case.final_R;
         end
     end
@@ -254,19 +256,19 @@ else
 end
 end
 
-function out_case = run_one_case(params_case, init_mode, alg_mode, alg_seed, scene_in)
+function out_case = run_one_case(params_case, init_mode, alg_mode, init_seed, alg_seed, scene_in)
 % 单个实验：初始化 + 算法运行 + 指标整理
-rng(alg_seed);
-
-if nargin >= 5 && ~isempty(scene_in)
+if nargin >= 6 && ~isempty(scene_in)
     scene = scene_in;
 else
+    rng(init_seed);
     scene = Channel_model('build_scene', params_case, [], [], []);
 end
 
 model = Problem_formulation(params_case, scene);
 
 % 初始化方式
+rng(init_seed);
 if strcmp(init_mode, 'random')
     state = Initialization_ra(params_case, scene, model);
 else
@@ -275,6 +277,9 @@ end
 
 % 历史量初始化
 history = init_history(params_case, scene, state);
+
+% 算法内部随机性
+rng(alg_seed);
 
 % 算法模式
 if strcmp(alg_mode, 'proposed')
@@ -472,8 +477,9 @@ user_pos_pool = build_fixed_user_pool(base_params, 1, 'convergence', scene_seed)
 scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
 
 for idx_scheme = 1:ns
-    alg_seed = base_params.seed + 10000*5 + 100*idx_scheme + 1;
-    out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, alg_seed, scene_case);
+    init_seed = base_params.seed + 20000*5 + 1;
+    alg_seed = base_params.seed + 30000*5 + 100*idx_scheme + 1;
+    out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
     conv_results{idx_scheme} = out_case.history.R_sum(:);
 end
 end
@@ -489,8 +495,9 @@ for idx_mc = 1:MC
     scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
 
     for idx_scheme = 1:ns
-        alg_seed = base_params.seed + 10000*6 + 100*idx_scheme + idx_mc;
-        out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, alg_seed, scene_case);
+        init_seed = base_params.seed + 20000*6 + idx_mc;
+        alg_seed = base_params.seed + 30000*6 + 100*idx_scheme + idx_mc;
+        out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
         rate_cells{idx_scheme} = [rate_cells{idx_scheme}; out_case.rates_final(:)]; %#ok<AGROW>
     end
 end
