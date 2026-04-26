@@ -9,7 +9,7 @@ N = params.N; M = params.M;
 
 %% Step 1) Potential Gain Matrix and Candidate User Pool
 [Gpot, y_star, Emax] = build_potential_gain_matrix(params, scene);
-C = build_candidate_pool(Emax, params.K_serv);
+C = build_candidate_pool(Emax, params);
 
 %% Step 2) Global Matching and Initial User Set S^(0)
 y_ref = build_reference_positions(params);
@@ -154,10 +154,19 @@ end
 Emax = max(Gpot, [], 2);
 end
 
-function C = build_candidate_pool(Emax, K_serv)
+function C = build_candidate_pool(Emax, params)
+% 按 Emax 降序选候选池 C
+% 原论文默认 C_factor=2，即 |C|=2*K_serv
 K = numel(Emax);
+
+C_factor = 2;
+if isfield(params, 'C_factor')
+    C_factor = params.C_factor;
+end
+
+Nc = min(C_factor * params.K_serv, K);
 [~, idx] = sort(Emax, 'descend');
-C = idx(1:min(2*K_serv, K));
+C = idx(1:Nc);
 C = C(:).';
 end
 

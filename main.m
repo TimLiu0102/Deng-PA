@@ -42,6 +42,10 @@ params.sigma2 = 5e-9;
 
 % 4) 初始化参数
 params.lambda_mov = 0.05;
+% 候选池放大因子
+% 原论文为 2，即 |C|=2*K_serv；
+% 调试时设为 4，用来判断 S 不动是否因为候选池太小。
+params.C_factor = 4;
 
 % 5) WMMSE 参数
 params.I_W = 40;
@@ -65,12 +69,12 @@ params.I_X = 6;
 params.lbfgs_mem = 5;
 
 % 8) 用户集更新参数
-% 调试版：放宽 S 块搜索范围，观察用户集合是否能够发生交换
-params.T_S = 1;                         % 每轮都尝试更新用户集合
-params.L_in = params.K_serv;            % 当前服务用户全部作为潜在被替换用户
-params.L_out = 2 * params.K_serv;       % 从候选池外部取更多强候选
+% 强测试版：扩大 S 搜索范围，允许一轮内多次 single-swap
+params.T_S = 1;                         % 每轮都更新用户集合
+params.L_in = params.K_serv;            % 当前所有服务用户都可被替换
+params.L_out = params.K;                % 外部候选尽量多取，实际受 C\S 限制
 params.eps_S = 0;                       % 只要不下降就接受
-params.max_swaps = 1;                   % 调试时先限制每轮1次swap，避免reW过慢
+params.max_swaps = params.K_serv;       % 一轮最多允许 K_serv 次 single-swap
 
 % S 块候选评价方式
 % 'fixedW'：论文版，候选 swap 固定当前 W 评价；
@@ -79,7 +83,7 @@ params.S_eval_mode = 'reW';
 params.DEBUG_S = true;
 
 % 9) 外层停止参数
-params.T_max = 30;
+params.T_max = 5;
 params.eps_outer = 1e-4;
 
 % 9.5) SA 联合优化参数（纯启发式联合搜索）
