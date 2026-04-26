@@ -70,7 +70,7 @@ for iter_swap = 1:max_swaps
                 best_user_in = user_in;
                 best_user_out = user_out;
                 S_best = S_candidate;
-                best_W = W_candidate;
+                best_W = state_now.W;
             end
         end
     end
