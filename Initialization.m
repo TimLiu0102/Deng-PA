@@ -127,13 +127,22 @@ end
 maxPairs = min([params.K_serv, Nc, NPA]);
 
 if exist('matchpairs','file') == 2
-    % matchpairs是最小化成本，故取成本 = -U
-    [pairs,~] = matchpairs(-U, -1e12, 'max');
+    % 目标是最大化收益 U
+    [pairs,~] = matchpairs(U, -1e12, 'max');
     if size(pairs,1) > maxPairs
-        pairs = pairs(1:maxPairs,:);
+        gain_pairs = zeros(size(pairs,1),1);
+        for i = 1:size(pairs,1)
+            gain_pairs(i) = U(pairs(i,1), pairs(i,2));
+        end
+        [~, idx_sort] = sort(gain_pairs, 'descend');
+        pairs = pairs(idx_sort(1:maxPairs), :);
     end
 else
     % 简洁后备：贪心一对一最大收益
+    pairs = greedy_match(U, maxPairs);
+end
+
+if isempty(pairs)
     pairs = greedy_match(U, maxPairs);
 end
 
@@ -171,7 +180,7 @@ end
 
 function S = build_initial_service_set(C, matching, K_serv)
 % 对应论文：S^(0) = {k in C: 存在匹配}
-ic_used = unique(matching.pairs_ic_col(:,1));
+ic_used = unique(matching.pairs_ic_col(:,1), 'stable');
 S = C(ic_used);
 
 % 正常情况下匹配应给出K_serv个用户；若不足则从C中按顺序补齐
