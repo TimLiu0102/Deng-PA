@@ -1,4 +1,4 @@
-function [S_new, swap_flag] = AO_S(params, scene, model, state)
+function [S_new, swap_flag, W_new] = AO_S(params, scene, model, state)
 % AO_S：固定 (X,W,theta,phi) 下，按 restricted single-swap 更新用户集 S
 
 if nargin < 3
@@ -7,6 +7,7 @@ end
 
 S_new = state.S(:).';
 swap_flag = false;
+W_new = state.W;
 
 %% 1) 周期性触发规则：仅在 mod(t, T_S)==0 时更新
 if ~isfield(state,'t')
@@ -27,6 +28,7 @@ end
 for iter_swap = 1:max_swaps
     state_now = state;
     state_now.S = S_new;
+    state_now.W = W_new;
 
     % 2) 当前服务用户个体速率（顺序与 S_new 一致）
     rates = get_current_individual_rates(params, scene, state_now);
@@ -50,6 +52,7 @@ for iter_swap = 1:max_swaps
     best_pos = [];
     best_user_in = [];
     best_user_out = [];
+    best_W = W_new;
 
     for a = 1:numel(idx_weak)
         pos_in_S = idx_weak(a);
@@ -66,19 +69,22 @@ for iter_swap = 1:max_swaps
                 best_pos = pos_in_S;
                 best_user_in = user_in;
                 best_user_out = user_out;
-                S_best = S_candidate; %#ok<NASGU>
+                S_best = S_candidate;
+                best_W = W_candidate;
             end
         end
     end
 
     % 7) best-improvement 接受准则
     if best_delta >= params.eps_S
-        S_new = apply_single_swap(S_new, best_pos, best_user_in, best_user_out);
+        S_new = S_best;
+        W_new = best_W;
         swap_flag = true;
 
         % 保证不重复且长度不变
         if numel(unique(S_new)) ~= numel(S_new)
             S_new = state_now.S;
+            W_new = state_now.W;
             break;
         end
     else
@@ -127,6 +133,7 @@ S_candidate(pos_in_S) = user_out;
 
 state_candidate = state_now;
 state_candidate.S = S_candidate;
+W_candidate = state_now.W;
 
 R_candidate = Signal_model('sum_rate', params, scene, state_candidate, struct());
 delta_val = R_candidate - R_base;
