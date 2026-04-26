@@ -8,14 +8,14 @@ function compare_result = Plot_Compare(base_params)
 plot_mode = 'full';   % 'debug' 或 'full'
 
 %% ======================== 图形开关 ========================
-do_snr         = true;   % 图1：频谱效率 vs SNR
-do_K           = true;   % 图2：频谱效率 vs 用户数 K
+do_snr         = false;   % 图1：频谱效率 vs SNR
+do_K           = false;   % 图2：频谱效率 vs 用户数 K
 do_N           = true;   % 图3：频谱效率 vs 波导数 N
-do_M           = true;   % 图4：频谱效率 vs 每条波导 PA 数 M
+do_M           = false;   % 图4：频谱效率 vs 每条波导 PA 数 M
 do_Dy          = true;   % 图5：频谱效率 vs 波导长度 / PA可移动范围 Dy
-do_convergence = true;   % 图6：收敛曲线
-do_cdf         = true;   % 图7：Per-user rate CDF
-do_geometry    = true;   % 图8：几何图
+do_convergence = false;   % 图6：收敛曲线
+do_cdf         = false;   % 图7：Per-user rate CDF
+do_geometry    = false;   % 图8：几何图
 
 fprintf('\n================ 多方案对比绘图 ================\n');
 
@@ -31,7 +31,7 @@ if strcmp(plot_mode, 'debug')
     M_vec = [4 6];
     Dy_vec = [6 10];
 else
-    MC = 5;
+    MC = 30;
     snr_dB_vec = [-10 -5 0 5 10 15 20 25 30];
     K_vec = [8 16 24 32 48 64];
     N_vec = [2 4 6 8 10 12];
