@@ -101,7 +101,7 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'hg_multiuser';   % 'ao_final_w' | 'w_only' | 'sa_joint' | 'hg_multiuser'
+scheme_mode = 'ao_final_w';   % 'ao_final_w' | 'w_only' | 'sa_joint' | 'hg_multiuser'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
@@ -351,10 +351,10 @@ result.model = model;
 
 %% 第8部分：结果显示方式切换
 % 方式1：新的论文式多方案对比图（默认启用）
-compare_result = Plot_Compare(params);
-result.compare_result = compare_result;
+% compare_result = Plot_Compare(params);
+% result.compare_result = compare_result;
 
 % 方式2：原来的单次仿真结果图
-% Print_and_Plot(params, scene, model, result);
+Print_and_Plot(params, scene, model, result);
 
 end
