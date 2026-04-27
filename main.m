@@ -63,6 +63,11 @@ params.line_search_max_iter = 8;
 params.eps_X = 1e-5;
 params.I_X = 6;
 params.lbfgs_mem = 5;
+params.I_X_refine = 3;                  % 每条波导的粗到细位置内迭代轮数
+params.X_refine_grid_num = 41;          % 每次一维搜索的网格点数
+params.X_refine_radius_list = [inf, 0.5, 0.1, 0.02, 0.005];  % 第一轮全区间，后续局部细化
+params.eps_X_refine = 0;                % 调试阶段允许任意非下降提升
+params.X_refine_use_ystar = true;       % 若 state.y_star 存在，则把 y_star 加入候选点
 
 % 8) 用户集更新参数
 params.T_S = 1;
@@ -164,10 +169,14 @@ if strcmp(scheme_mode, 'ao_final_w')
         R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
         % 3) 更新位置
-        [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
-        history.X_update_mode = 'gradient';
+        % [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
+        % history.X_update_mode = 'gradient';
+
         % [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
         % history.X_update_mode = 'exhaustive';
+
+        [state.X, DEBUG_X_t] = AO_X_grid_refine(params, scene, model, state);
+        history.X_update_mode = 'grid_refine';
         R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
         % 4) 更新用户集合
