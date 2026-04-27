@@ -155,7 +155,8 @@ if strcmp(scheme_mode, 'ao_final_w')
         % 当前外层迭代编号，供 AO_S 周期触发判断
         state.t = t;
 
-
+         state.W = AO_W(params, scene, model, state);
+         R_after_W = Signal_model('sum_rate', params, scene, state, []);
 
         % 2) 更新角度
         [state.theta, state.phi] = AO_angle(params, scene, model, state);
@@ -163,10 +164,10 @@ if strcmp(scheme_mode, 'ao_final_w')
         R_after_angle = Signal_model('sum_rate', params, scene, state, []);
 
         % 3) 更新位置
-        [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
-        history.X_update_mode = 'gradient';
-        % [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
-        % history.X_update_mode = 'exhaustive';
+        % [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
+        % history.X_update_mode = 'gradient';
+        [state.X, DEBUG_X_t] = AO_X_ex(params, scene, model, state);
+        history.X_update_mode = 'exhaustive';
         R_after_X = Signal_model('sum_rate', params, scene, state, []);
 
         % 4) 更新用户集合
@@ -177,7 +178,7 @@ if strcmp(scheme_mode, 'ao_final_w')
         R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
         % 5) 保存每轮四块更新后的中间 sum rate
-        % history.R_after_W(end+1,1) = R_after_W;
+        history.R_after_W(end+1,1) = R_after_W;
         history.R_after_angle(end+1,1) = R_after_angle;
         history.R_after_X(end+1,1) = R_after_X;
         history.R_after_S(end+1,1) = R_after_S;
@@ -194,7 +195,7 @@ if strcmp(scheme_mode, 'ao_final_w')
         history.swap_flag(end+1,1) = state.swap_flag;
 
         %% ======================== DEBUG_X START ========================
-        % history.DEBUG_X_cells{t,1} = DEBUG_X_t;
+        history.DEBUG_X_cells{t,1} = DEBUG_X_t;
         %% ======================== DEBUG_X END ==========================
 
         % 8) 外层停止判断
@@ -207,15 +208,7 @@ if strcmp(scheme_mode, 'ao_final_w')
         % 9) 更新上一轮目标值
         R_old = R_new;
     end
-R_before_final_W = Signal_model('sum_rate', params, scene, state, []);
 
-state.W = AO_W(params, scene, model, state);
-
-R_after_final_W = Signal_model('sum_rate', params, scene, state, []);
-
-history.R_before_final_W = R_before_final_W;
-history.R_after_W = R_after_final_W;
-history.R_sum(end+1,1) = R_after_final_W;
 
 elseif strcmp(scheme_mode, 'w_only')
     history.X_update_mode = 'none';
