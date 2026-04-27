@@ -127,9 +127,9 @@ for it = 1:params.I_X_refine
 
         % 候选点评价
         R_candidates = zeros(numel(candidates),1);
-        best_R = -inf;
+        best_R = R_cur;
         best_x = x_now;
-        best_idx = 1;
+        [~, best_idx] = min(abs(candidates - x_now));
 
         for c = 1:numel(candidates)
             x_try = candidates(c);
@@ -141,7 +141,7 @@ for it = 1:params.I_X_refine
             R_try = Signal_model('sum_rate', params, scene, state_tmp, []);
 
             R_candidates(c) = R_try;
-            if R_try > best_R
+            if R_try > best_R + params.eps_X_refine
                 best_R = R_try;
                 best_x = x_try;
                 best_idx = c;
@@ -149,7 +149,7 @@ for it = 1:params.I_X_refine
         end
 
         % 非下降接受
-        accept_flag = (best_R >= R_cur + params.eps_X_refine);
+        accept_flag = (abs(best_x - x_now) > 1e-12);
         if accept_flag
             X_cur(n,m) = best_x;
         else
@@ -184,7 +184,7 @@ for it = 1:params.I_X_refine
     DEBUG_X_it.DEBUG_X_radius = radius;
     DEBUG_X_it.DEBUG_X_x_old_round = x_old_round;
     DEBUG_X_it.DEBUG_X_x_new_round = X_cur(n,:);
-    DEBUG_X_it.DEBUG_X_round_changed = ~isequal(X_cur(n,:), x_old_round);
+    DEBUG_X_it.DEBUG_X_round_changed = (norm(X_cur(n,:) - x_old_round, inf) >= 1e-12);
     if need_detail
         DEBUG_X_it.DEBUG_X_pa_cells = DEBUG_X_pa_cells;
         DEBUG_X_it.DEBUG_X_waveguide_states = DEBUG_X_waveguide_states;
@@ -194,7 +194,7 @@ for it = 1:params.I_X_refine
     end
     DEBUG_X_wg.DEBUG_X_iters{it} = DEBUG_X_it;
 
-    if isequal(X_cur(n,:), x_old_round)
+    if norm(X_cur(n,:) - x_old_round, inf) < 1e-12
         break;
     end
 end
