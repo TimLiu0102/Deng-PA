@@ -174,7 +174,7 @@ if strcmp(scheme_mode, 'ao_final_w')
         % 4) 更新用户集合
         % 按论文思路，S 候选交换评价时固定当前 W，不对每个候选重新 WMMSE；
         % 若发生用户交换，新 W 会在下一轮 W 子问题中重新适配。
-        [state.S, state.swap_flag, state.W] = AO_S(params, scene, model, state);
+        [state.S, state.swap_flag] = AO_S(params, scene, model, state);
         % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
         R_after_S = Signal_model('sum_rate', params, scene, state, []);
 
