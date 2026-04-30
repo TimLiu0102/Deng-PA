@@ -42,10 +42,10 @@ for iter_swap = 1:max_swaps
         break;
     end
 
-    % 当前基准sum rate
-    R_base = Signal_model('sum_rate', params, scene, state_now, struct());
+    % 当前基准R_eff
+    [R_base_eff, ~] = Effective_rate_model(params, scene, state_now, []);
 
-    % 5)-6) 枚举 single-swap 并计算交换增益 Delta
+    % 5)-6) 枚举 single-swap 并计算交换增益 Delta_eff
     best_delta = -inf;
     best_pos = [];
     best_user_in = [];
@@ -59,7 +59,7 @@ for iter_swap = 1:max_swaps
             user_out = J_strong(b);
 
             [S_candidate, delta_val] = evaluate_single_swap( ...
-                params, scene, state_now, S_new, pos_in_S, user_in, user_out, R_base);
+                params, scene, state_now, S_new, pos_in_S, user_in, user_out, R_base_eff);
 
             if delta_val > best_delta
                 best_delta = delta_val;
@@ -71,7 +71,7 @@ for iter_swap = 1:max_swaps
         end
     end
 
-    % 7) best-improvement 接受准则
+    % 7) best-improvement 接受准则（按R_eff增益）
     if best_delta >= params.eps_S
         S_new = S_best;
         swap_flag = true;
@@ -117,7 +117,7 @@ L = min(L_out, numel(outside));
 J_strong = outside(idx(1:L));
 end
 
-function [S_candidate, delta_val] = evaluate_single_swap(params, scene, state_now, S_now, pos_in_S, user_in, user_out, R_base)
+function [S_candidate, delta_val] = evaluate_single_swap(params, scene, state_now, S_now, pos_in_S, user_in, user_out, R_base_eff)
 S_candidate = S_now;
 if S_candidate(pos_in_S) ~= user_in
     % 保证位置与用户对应一致
@@ -128,6 +128,10 @@ S_candidate(pos_in_S) = user_out;
 state_candidate = state_now;
 state_candidate.S = S_candidate;
 
-R_candidate = Signal_model('sum_rate', params, scene, state_candidate, struct());
-delta_val = R_candidate - R_base;
+[R_candidate_eff, detail_candidate] = Effective_rate_model(params, scene, state_candidate, []);
+if detail_candidate.time_feasible
+    delta_val = R_candidate_eff - R_base_eff;
+else
+    delta_val = -inf;
+end
 end
