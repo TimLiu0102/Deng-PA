@@ -44,10 +44,10 @@ params.sigma2 = 5e-9;
 params.lambda_mov = 0.05;
 
 % 4.5) 有效速率模型参数
-params.T_f = 1;
-params.v_PA = 1;
-params.omega_theta = 1;
-params.omega_phi = 1;
+params.T_f = 5;             % frame duration, s
+params.v_PA = 2;            % PA moving speed, m/s
+params.omega_theta = 300;   % elevation rotation speed, rad/s
+params.omega_phi = 300;     % azimuth rotation speed, rad/s
 params.rho = 0.5;
 
 % 5) WMMSE 参数
@@ -166,7 +166,7 @@ history.theta_cells = {};
 history.phi_cells = {};
 
 %% ======================== DEBUG_X START ========================
-history.DEBUG_X_cells = {};
+% history.DEBUG_X_cells = {};
 %% ======================== DEBUG_X END ==========================
 
 % 交换标记历史（保留原有语义：首个元素对应初始化）
