@@ -26,13 +26,34 @@ fprintf('\n================ 结果汇总 ================\n');
 fprintf('系统规模: N=%d, M=%d, K=%d\n', params.N, params.M, params.K);
 fprintf('服务用户数 K_serv=%d\n', model.K_serv);
 
+if isfield(history,'R_eff') && ~isempty(history.R_eff)
+    R_eff_hist = history.R_eff(:);
+    fprintf('初始 R_eff: %.6f\n', R_eff_hist(1));
+    fprintf('最终 R_eff: %.6f\n', R_eff_hist(end));
+    fprintf('外层迭代次数: %d\n', numel(R_eff_hist)-1);
+elseif isfield(history,'R_sum') && ~isempty(history.R_sum)
+    fprintf('R_eff 历史缺失，外层迭代次数改按 R_sum 估计。\n');
+    fprintf('外层迭代次数: %d\n', numel(history.R_sum(:))-1);
+else
+    fprintf('R_eff / R_sum 历史均缺失，无法打印收敛信息。\n');
+end
+
 if isfield(history,'R_sum') && ~isempty(history.R_sum)
     R_hist = history.R_sum(:);
-    fprintf('初始 sum rate: %.6f\n', R_hist(1));
-    fprintf('最终 sum rate: %.6f\n', R_hist(end));
-    fprintf('外层迭代次数: %d\n', numel(R_hist)-1);
-else
-    fprintf('sum rate 历史缺失，无法打印收敛信息。\n');
+    fprintf('初始原始 sum rate: %.6f\n', R_hist(1));
+    fprintf('最终原始 sum rate: %.6f\n', R_hist(end));
+end
+
+if isfield(history,'T_X') && ~isempty(history.T_X) ...
+        && isfield(history,'T_theta') && ~isempty(history.T_theta) ...
+        && isfield(history,'T_phi') && ~isempty(history.T_phi) ...
+        && isfield(history,'T_rec') && ~isempty(history.T_rec) ...
+        && isfield(history,'time_factor') && ~isempty(history.time_factor)
+    fprintf('最终 T_X: %.6f\n', history.T_X(end));
+    fprintf('最终 T_theta: %.6f\n', history.T_theta(end));
+    fprintf('最终 T_phi: %.6f\n', history.T_phi(end));
+    fprintf('最终 T_rec: %.6f\n', history.T_rec(end));
+    fprintf('最终 time factor: %.6f\n', history.time_factor(end));
 end
 
 if isfield(state,'S')
@@ -75,13 +96,62 @@ if ~isempty(sinr_final)
     fprintf('\n');
 end
 
-%% ======================== 图1：sum rate 收敛曲线 ========================
+%% ======================== 图1：R_eff 主收敛曲线 ========================
+if isfield(history,'R_eff') && ~isempty(history.R_eff)
+    figure;
+    plot(0:numel(history.R_eff)-1, history.R_eff, '-o');
+    xlabel('外层迭代次数');
+    ylabel('R_eff');
+    title('外层迭代 R_eff 收敛曲线');
+    grid on;
+end
+
+%% ======================== 图1B：原始 sum rate 辅助收敛曲线 ========================
 if isfield(history,'R_sum') && ~isempty(history.R_sum)
     figure;
     plot(0:numel(history.R_sum)-1, history.R_sum, '-o');
     xlabel('外层迭代次数');
-    ylabel('sum rate');
-    title('外层迭代 sum rate 收敛曲线');
+    ylabel('Raw sum rate');
+    title('外层迭代原始 sum rate 曲线');
+    grid on;
+end
+
+%% ======================== 图1C：重构时间 T_rec 收敛曲线 ========================
+if isfield(history,'T_rec') && ~isempty(history.T_rec)
+    figure;
+    plot(0:numel(history.T_rec)-1, history.T_rec, '-o');
+    xlabel('外层迭代次数');
+    ylabel('T_{rec}');
+    title('重构时间 T_{rec} 随迭代变化');
+    grid on;
+end
+
+%% ======================== 图1D：重构时间分量曲线 ========================
+if isfield(history,'T_X') && ~isempty(history.T_X) ...
+        && isfield(history,'T_theta') && ~isempty(history.T_theta) ...
+        && isfield(history,'T_phi') && ~isempty(history.T_phi)
+    T_comp = min([numel(history.T_X), numel(history.T_theta), numel(history.T_phi)]);
+    if T_comp > 0
+        figure;
+        plot(0:T_comp-1, history.T_X(1:T_comp), '-o'); hold on;
+        plot(0:T_comp-1, history.T_theta(1:T_comp), '-s');
+        plot(0:T_comp-1, history.T_phi(1:T_comp), '-^');
+        hold off;
+        xlabel('外层迭代次数');
+        ylabel('Reconfiguration time component');
+        title('重构时间分量随迭代变化');
+        legend('T_X','T_\theta','T_\phi','Location','best');
+        grid on;
+    end
+end
+
+%% ======================== 图1E：time factor 曲线 ========================
+if isfield(history,'time_factor') && ~isempty(history.time_factor)
+    figure;
+    plot(0:numel(history.time_factor)-1, history.time_factor, '-o');
+    xlabel('外层迭代次数');
+    ylabel('time factor');
+    title('有效通信时间比例 time factor 随迭代变化');
     grid on;
 end
 
@@ -288,8 +358,42 @@ if isfield(history,'R_after_W') && isfield(history,'R_after_angle') ...
         figure;
         bar(1:T, [deltaW, deltaAngle, deltaX, deltaS], 'stacked');
         xlabel('外层迭代轮次');
-        ylabel('sum rate 增益');
-        title('各块更新的 sum rate 增益');
+        ylabel('raw sum rate gain');
+        title('各块更新的原始 sum rate 增益');
+        legend('W块','角度块','位置块','用户集块','Location','best');
+        grid on;
+    end
+end
+
+if isfield(history,'R_eff_after_W') && ~isempty(history.R_eff_after_W) ...
+        && isfield(history,'R_eff_after_angle') && ~isempty(history.R_eff_after_angle) ...
+        && isfield(history,'R_eff_after_X') && ~isempty(history.R_eff_after_X) ...
+        && isfield(history,'R_eff_after_S') && ~isempty(history.R_eff_after_S) ...
+        && isfield(history,'R_eff') && ~isempty(history.R_eff)
+    R_eff_prev = history.R_eff(:);
+    Rw_eff = history.R_eff_after_W(:);
+    Ra_eff = history.R_eff_after_angle(:);
+    Rx_eff = history.R_eff_after_X(:);
+    Rs_eff = history.R_eff_after_S(:);
+
+    T_eff = min([numel(R_eff_prev)-1, numel(Rw_eff), numel(Ra_eff), numel(Rx_eff), numel(Rs_eff)]);
+    if T_eff > 0
+        R_eff_prev = R_eff_prev(1:T_eff);
+        Rw_eff = Rw_eff(1:T_eff);
+        Ra_eff = Ra_eff(1:T_eff);
+        Rx_eff = Rx_eff(1:T_eff);
+        Rs_eff = Rs_eff(1:T_eff);
+
+        deltaW = Rw_eff - R_eff_prev;
+        deltaAngle = Ra_eff - Rw_eff;
+        deltaX = Rx_eff - Ra_eff;
+        deltaS = Rs_eff - Rx_eff;
+
+        figure;
+        bar(1:T_eff, [deltaW, deltaAngle, deltaX, deltaS], 'stacked');
+        xlabel('外层迭代轮次');
+        ylabel('R_eff gain');
+        title('各块更新的 R_eff 增益');
         legend('W块','角度块','位置块','用户集块','Location','best');
         grid on;
     end
