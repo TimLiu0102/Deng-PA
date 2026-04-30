@@ -8,9 +8,11 @@ end
 model = struct();
 
 %% 总目标（对应论文总优化问题）
-model.objective_name = 'Joint maximization of system sum rate';
+model.objective_name = 'Joint maximization of effective rate within one frame';
 model.Rsum_definition = 'R_sum(S,X,W,theta,phi) = sum_{k in S} log2(1 + gamma_k)';
-model.objective = 'max_{S,X,W,theta,phi} R_sum(S,X,W,theta,phi)';
+model.Trec_definition = 'T_rec(theta,phi,X) = max{T_X(X), T_theta(theta), T_phi(phi)}';
+model.Reff_definition = 'R_eff(S,X,W,theta,phi) = [1 - T_rec(theta,phi,X)/T_f]^+ R_sum(S,X,W,theta,phi)';
+model.objective = 'max_{S,X,W,theta,phi} R_eff(S,X,W,theta,phi)';
 
 %% 优化变量
 model.variables = {'S','X','W','theta','phi'};
@@ -22,6 +24,10 @@ model.K_serv = min(params.NRF, params.K_max);
 model.N = params.N;
 model.M = params.M;
 model.K = params.K;
+model.T_f = params.T_f;
+model.v_PA = params.v_PA;
+model.omega_theta = params.omega_theta;
+model.omega_phi = params.omega_phi;
 
 %% 约束定义（对应论文约束式）
 % 1) 用户集合约束
@@ -46,6 +52,11 @@ model.angle_bounds = struct(...
 model.power_constraint = struct(...
     'expression', 'trace(W*W^H) <= P_max', ...
     'P_max', params.P_max);
+
+% 5) 重构时间约束
+model.reconfiguration_time_constraint = struct(...
+    'expression', 'T_rec(theta,phi,X) <= T_f', ...
+    'T_f', params.T_f);
 
 %% 波导位置可行域（对应论文可行域定义）
 model.position_feasible_set = ...

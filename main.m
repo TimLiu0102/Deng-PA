@@ -43,6 +43,13 @@ params.sigma2 = 5e-9;
 % 4) 初始化参数
 params.lambda_mov = 0.05;
 
+% 4.5) 有效速率模型参数
+params.T_f = 1;
+params.v_PA = 1;
+params.omega_theta = 1;
+params.omega_phi = 1;
+params.rho = 0.5;
+
 % 5) WMMSE 参数
 params.I_W = 40;
 params.eps_W = 1e-4;
@@ -102,7 +109,7 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'margin';   % 'paper' | 'margin' | 'random'
+init_mode = 'paper';   % 'paper' | 'margin' | 'random'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
@@ -120,7 +127,9 @@ end
 
 %% 第5部分：初始性能与历史量
 rates0 = Signal_model('individual_rates', params, scene, state, []);
-R_old = sum(rates0);
+R_sum0 = sum(rates0);
+[R_eff0, detail0] = Effective_rate_model(params, scene, state, []);
+R_old = R_eff0;
 
 history = struct();
 
@@ -131,14 +140,24 @@ history.phi0 = state.phi;
 history.S0 = state.S;
 history.rates0 = rates0;
 
-% 初始 sum rate
-history.R_sum = R_old;
+% 初始 sum rate 与有效速率
+history.R_sum = R_sum0;
+history.R_eff = R_eff0;
+history.T_X = detail0.T_X;
+history.T_theta = detail0.T_theta;
+history.T_phi = detail0.T_phi;
+history.T_rec = detail0.T_rec;
+history.time_factor = detail0.time_factor;
 
 % 每轮四块后的中间 sum rate
 history.R_after_W = [];
 history.R_after_angle = [];
 history.R_after_X = [];
 history.R_after_S = [];
+history.R_eff_after_W = [];
+history.R_eff_after_angle = [];
+history.R_eff_after_X = [];
+history.R_eff_after_S = [];
 
 % 每轮变量快照
 history.S_cells = {};
@@ -162,11 +181,13 @@ if strcmp(scheme_mode, 'ao_final_w')
 
          state.W = AO_W(params, scene, model, state);
          R_after_W = Signal_model('sum_rate', params, scene, state, []);
+         [R_eff_after_W, ~] = Effective_rate_model(params, scene, state, []);
 
         % 2) 更新角度
         [state.theta, state.phi] = AO_angle(params, scene, model, state);
         % [state.theta, state.phi] = AO_angle_ex(params, scene, model, state);
         R_after_angle = Signal_model('sum_rate', params, scene, state, []);
+        [R_eff_after_angle, ~] = Effective_rate_model(params, scene, state, []);
 
         % 3) 更新位置
         % [state.X, DEBUG_X_t] = AO_X(params, scene, model, state);
@@ -178,6 +199,7 @@ if strcmp(scheme_mode, 'ao_final_w')
         [state.X, DEBUG_X_t] = AO_X_grid_refine(params, scene, model, state);
         history.X_update_mode = 'grid_refine';
         R_after_X = Signal_model('sum_rate', params, scene, state, []);
+        [R_eff_after_X, ~] = Effective_rate_model(params, scene, state, []);
 
         % 4) 更新用户集合
         % 按论文思路，S 候选交换评价时固定当前 W，不对每个候选重新 WMMSE；
@@ -185,16 +207,27 @@ if strcmp(scheme_mode, 'ao_final_w')
         [state.S, state.swap_flag] = AO_S(params, scene, model, state);
         % [state.S, state.swap_flag] = AO_S_ex(params, scene, model, state);
         R_after_S = Signal_model('sum_rate', params, scene, state, []);
+        [R_eff_after_S, detail_S] = Effective_rate_model(params, scene, state, []);
 
         % 5) 保存每轮四块更新后的中间 sum rate
         history.R_after_W(end+1,1) = R_after_W;
         history.R_after_angle(end+1,1) = R_after_angle;
         history.R_after_X(end+1,1) = R_after_X;
         history.R_after_S(end+1,1) = R_after_S;
+        history.R_eff_after_W(end+1,1) = R_eff_after_W;
+        history.R_eff_after_angle(end+1,1) = R_eff_after_angle;
+        history.R_eff_after_X(end+1,1) = R_eff_after_X;
+        history.R_eff_after_S(end+1,1) = R_eff_after_S;
 
-        % 6) 该轮最终真实 sum rate
-        R_new = R_after_S;
-        history.R_sum(end+1,1) = R_new;
+        % 6) 该轮最终性能：R_eff 与原始 sum rate
+        R_new = R_eff_after_S;
+        history.R_eff(end+1,1) = R_new;
+        history.R_sum(end+1,1) = R_after_S;
+        history.T_X(end+1,1) = detail_S.T_X;
+        history.T_theta(end+1,1) = detail_S.T_theta;
+        history.T_phi(end+1,1) = detail_S.T_phi;
+        history.T_rec(end+1,1) = detail_S.T_rec;
+        history.time_factor(end+1,1) = detail_S.time_factor;
 
         % 7) 保存每轮变量快照
         history.S_cells{t,1} = state.S;
@@ -208,8 +241,8 @@ if strcmp(scheme_mode, 'ao_final_w')
         %% ======================== DEBUG_X END ==========================
 
         % 8) 外层停止判断
-        % 停止条件：|R_sum^(t+1)-R_sum^(t)|<eps_outer 或达到T_max
-        % 各块更新均按真实sum rate非下降接受，故目标值序列单调非减
+        % 停止条件：|R_eff^(t+1)-R_eff^(t)|<eps_outer 或达到T_max
+        % R_eff 序列作为外层判断指标
         if abs(R_new - R_old) < params.eps_outer
             break;
         end
@@ -231,19 +264,33 @@ elseif strcmp(scheme_mode, 'w_only')
         % 1) 只更新 W
         state.W = AO_W(params, scene, model, state);
         R_after_W = Signal_model('sum_rate', params, scene, state, []);
+        [R_eff_after_W, detail_W] = Effective_rate_model(params, scene, state, []);
 
         % 2) 角度、位置和用户集合全部冻结
         R_after_angle = R_after_W;
         R_after_X = R_after_W;
         R_after_S = R_after_W;
+        R_eff_after_angle = R_eff_after_W;
+        R_eff_after_X = R_eff_after_W;
+        R_eff_after_S = R_eff_after_W;
 
         history.R_after_W(end+1,1) = R_after_W;
         history.R_after_angle(end+1,1) = R_after_angle;
         history.R_after_X(end+1,1) = R_after_X;
         history.R_after_S(end+1,1) = R_after_S;
+        history.R_eff_after_W(end+1,1) = R_eff_after_W;
+        history.R_eff_after_angle(end+1,1) = R_eff_after_angle;
+        history.R_eff_after_X(end+1,1) = R_eff_after_X;
+        history.R_eff_after_S(end+1,1) = R_eff_after_S;
 
-        R_new = R_after_S;
-        history.R_sum(end+1,1) = R_new;
+        R_new = R_eff_after_S;
+        history.R_eff(end+1,1) = R_new;
+        history.R_sum(end+1,1) = R_after_S;
+        history.T_X(end+1,1) = detail_W.T_X;
+        history.T_theta(end+1,1) = detail_W.T_theta;
+        history.T_phi(end+1,1) = detail_W.T_phi;
+        history.T_rec(end+1,1) = detail_W.T_rec;
+        history.time_factor(end+1,1) = detail_W.time_factor;
 
         history.S_cells{t,1} = state.S;
         history.X_cells{t,1} = state.X;
@@ -284,13 +331,62 @@ elseif strcmp(scheme_mode, 'sa_joint')
     if ~isfield(history, 'R_after_S')
         history.R_after_S = [];
     end
+    if ~isfield(history, 'R_eff_after_W')
+        history.R_eff_after_W = [];
+    end
+    if ~isfield(history, 'R_eff_after_angle')
+        history.R_eff_after_angle = [];
+    end
+    if ~isfield(history, 'R_eff_after_X')
+        history.R_eff_after_X = [];
+    end
+    if ~isfield(history, 'R_eff_after_S')
+        history.R_eff_after_S = [];
+    end
     if ~isfield(history, 'R_before_final_W')
         history.R_before_final_W = [];
     end
     if ~isfield(history, 'R_after_final_W')
         history.R_after_final_W = [];
     end
-    history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
+    R_sum_end = Signal_model('sum_rate', params, scene, state, []);
+    [R_eff_end, detail_end] = Effective_rate_model(params, scene, state, []);
+
+    if ~isfield(history,'R_sum') || isempty(history.R_sum)
+        history.R_sum = R_sum_end;
+    else
+        history.R_sum(end,1) = R_sum_end;
+    end
+    if ~isfield(history,'R_eff') || isempty(history.R_eff)
+        history.R_eff = R_eff_end;
+    else
+        history.R_eff(end,1) = R_eff_end;
+    end
+    if ~isfield(history,'T_X') || isempty(history.T_X)
+        history.T_X = detail_end.T_X;
+    else
+        history.T_X(end,1) = detail_end.T_X;
+    end
+    if ~isfield(history,'T_theta') || isempty(history.T_theta)
+        history.T_theta = detail_end.T_theta;
+    else
+        history.T_theta(end,1) = detail_end.T_theta;
+    end
+    if ~isfield(history,'T_phi') || isempty(history.T_phi)
+        history.T_phi = detail_end.T_phi;
+    else
+        history.T_phi(end,1) = detail_end.T_phi;
+    end
+    if ~isfield(history,'T_rec') || isempty(history.T_rec)
+        history.T_rec = detail_end.T_rec;
+    else
+        history.T_rec(end,1) = detail_end.T_rec;
+    end
+    if ~isfield(history,'time_factor') || isempty(history.time_factor)
+        history.time_factor = detail_end.time_factor;
+    else
+        history.time_factor(end,1) = detail_end.time_factor;
+    end
 
 elseif strcmp(scheme_mode, 'hg_multiuser')
     [state_best, history_hg] = HG_multiuser(params, scene, model, state);
@@ -316,13 +412,62 @@ elseif strcmp(scheme_mode, 'hg_multiuser')
     if ~isfield(history, 'R_after_S')
         history.R_after_S = [];
     end
+    if ~isfield(history, 'R_eff_after_W')
+        history.R_eff_after_W = [];
+    end
+    if ~isfield(history, 'R_eff_after_angle')
+        history.R_eff_after_angle = [];
+    end
+    if ~isfield(history, 'R_eff_after_X')
+        history.R_eff_after_X = [];
+    end
+    if ~isfield(history, 'R_eff_after_S')
+        history.R_eff_after_S = [];
+    end
     if ~isfield(history, 'R_before_final_W')
         history.R_before_final_W = [];
     end
     if ~isfield(history, 'R_after_final_W')
         history.R_after_final_W = [];
     end
-    history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
+    R_sum_end = Signal_model('sum_rate', params, scene, state, []);
+    [R_eff_end, detail_end] = Effective_rate_model(params, scene, state, []);
+
+    if ~isfield(history,'R_sum') || isempty(history.R_sum)
+        history.R_sum = R_sum_end;
+    else
+        history.R_sum(end,1) = R_sum_end;
+    end
+    if ~isfield(history,'R_eff') || isempty(history.R_eff)
+        history.R_eff = R_eff_end;
+    else
+        history.R_eff(end,1) = R_eff_end;
+    end
+    if ~isfield(history,'T_X') || isempty(history.T_X)
+        history.T_X = detail_end.T_X;
+    else
+        history.T_X(end,1) = detail_end.T_X;
+    end
+    if ~isfield(history,'T_theta') || isempty(history.T_theta)
+        history.T_theta = detail_end.T_theta;
+    else
+        history.T_theta(end,1) = detail_end.T_theta;
+    end
+    if ~isfield(history,'T_phi') || isempty(history.T_phi)
+        history.T_phi = detail_end.T_phi;
+    else
+        history.T_phi(end,1) = detail_end.T_phi;
+    end
+    if ~isfield(history,'T_rec') || isempty(history.T_rec)
+        history.T_rec = detail_end.T_rec;
+    else
+        history.T_rec(end,1) = detail_end.T_rec;
+    end
+    if ~isfield(history,'time_factor') || isempty(history.time_factor)
+        history.time_factor = detail_end.time_factor;
+    else
+        history.time_factor(end,1) = detail_end.time_factor;
+    end
 
 else
     error('main: unsupported scheme_mode');
