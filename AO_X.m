@@ -28,7 +28,10 @@ end
 function [X_cur, DEBUG_X_waveguide] = update_single_waveguide(n, X_cur, params, scene, state)
 % 第n条波导的位置子问题更新（数值梯度 + L-BFGS方向 + 线搜索 + 投影）
 x_cur = X_cur(n,:).';
-[R_old, ~] = local_objective_fn(n, x_cur, X_cur, params, scene, state);
+[R_old, feasible_old] = local_objective_fn(n, x_cur, X_cur, params, scene, state);
+if ~feasible_old
+    R_old = local_reff_value(n, x_cur, X_cur, params, scene, state);
+end
 
 %% ======================== DEBUG_X START ========================
 DEBUG_X_waveguide = struct();
@@ -105,11 +108,22 @@ else
 end
 end
 
+function f = local_reff_value(n, x_n, X_ref, params, scene, state)
+% 仅用于当前点基准值：不做可行性过滤，直接返回R_eff
+X_tmp = replace_waveguide_position(X_ref, n, x_n);
+state_tmp = state;
+state_tmp.X = X_tmp;
+[f, ~] = Effective_rate_model(params, scene, state_tmp, []);
+end
+
 function g = numerical_gradient_position(n, x_n, X_ref, params, scene, state)
 % 数值微分近似梯度（中心差分）
 M = numel(x_n);
 g = zeros(M,1);
-[f0, ~] = local_objective_fn(n, x_n, X_ref, params, scene, state);
+[f0, feasible0] = local_objective_fn(n, x_n, X_ref, params, scene, state);
+if ~feasible0
+    f0 = local_reff_value(n, x_n, X_ref, params, scene, state);
+end
 
 for i = 1:M
     e = zeros(M,1);
@@ -171,6 +185,9 @@ end
 function [xbar, fbar, DEBUG_X_linesearch] = line_search_position(n, x_n, d, X_ref, params, scene, state, f0)
 % 局部线搜索：alpha从alpha0开始，按beta回缩；每个试探点先投影再验收
 alpha = params.line_search_alpha0;
+if ~isfinite(f0)
+    f0 = local_reff_value(n, x_n, X_ref, params, scene, state);
+end
 
 xbar = x_n;
 fbar = f0;
