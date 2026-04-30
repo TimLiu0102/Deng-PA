@@ -349,32 +349,44 @@ elseif strcmp(scheme_mode, 'sa_joint')
     if ~isfield(history, 'R_after_final_W')
         history.R_after_final_W = [];
     end
-    if ~isfield(history, 'R_eff')
-        history.R_eff = [];
-    end
-    if ~isfield(history, 'T_X')
-        history.T_X = [];
-    end
-    if ~isfield(history, 'T_theta')
-        history.T_theta = [];
-    end
-    if ~isfield(history, 'T_phi')
-        history.T_phi = [];
-    end
-    if ~isfield(history, 'T_rec')
-        history.T_rec = [];
-    end
-    if ~isfield(history, 'time_factor')
-        history.time_factor = [];
-    end
-    history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
+    R_sum_end = Signal_model('sum_rate', params, scene, state, []);
     [R_eff_end, detail_end] = Effective_rate_model(params, scene, state, []);
-    history.R_eff(end,1) = R_eff_end;
-    history.T_X(end,1) = detail_end.T_X;
-    history.T_theta(end,1) = detail_end.T_theta;
-    history.T_phi(end,1) = detail_end.T_phi;
-    history.T_rec(end,1) = detail_end.T_rec;
-    history.time_factor(end,1) = detail_end.time_factor;
+
+    if ~isfield(history,'R_sum') || isempty(history.R_sum)
+        history.R_sum = R_sum_end;
+    else
+        history.R_sum(end,1) = R_sum_end;
+    end
+    if ~isfield(history,'R_eff') || isempty(history.R_eff)
+        history.R_eff = R_eff_end;
+    else
+        history.R_eff(end,1) = R_eff_end;
+    end
+    if ~isfield(history,'T_X') || isempty(history.T_X)
+        history.T_X = detail_end.T_X;
+    else
+        history.T_X(end,1) = detail_end.T_X;
+    end
+    if ~isfield(history,'T_theta') || isempty(history.T_theta)
+        history.T_theta = detail_end.T_theta;
+    else
+        history.T_theta(end,1) = detail_end.T_theta;
+    end
+    if ~isfield(history,'T_phi') || isempty(history.T_phi)
+        history.T_phi = detail_end.T_phi;
+    else
+        history.T_phi(end,1) = detail_end.T_phi;
+    end
+    if ~isfield(history,'T_rec') || isempty(history.T_rec)
+        history.T_rec = detail_end.T_rec;
+    else
+        history.T_rec(end,1) = detail_end.T_rec;
+    end
+    if ~isfield(history,'time_factor') || isempty(history.time_factor)
+        history.time_factor = detail_end.time_factor;
+    else
+        history.time_factor(end,1) = detail_end.time_factor;
+    end
 
 elseif strcmp(scheme_mode, 'hg_multiuser')
     [state_best, history_hg] = HG_multiuser(params, scene, model, state);
@@ -418,32 +430,44 @@ elseif strcmp(scheme_mode, 'hg_multiuser')
     if ~isfield(history, 'R_after_final_W')
         history.R_after_final_W = [];
     end
-    if ~isfield(history, 'R_eff')
-        history.R_eff = [];
-    end
-    if ~isfield(history, 'T_X')
-        history.T_X = [];
-    end
-    if ~isfield(history, 'T_theta')
-        history.T_theta = [];
-    end
-    if ~isfield(history, 'T_phi')
-        history.T_phi = [];
-    end
-    if ~isfield(history, 'T_rec')
-        history.T_rec = [];
-    end
-    if ~isfield(history, 'time_factor')
-        history.time_factor = [];
-    end
-    history.R_sum(end,1) = Signal_model('sum_rate', params, scene, state, []);
+    R_sum_end = Signal_model('sum_rate', params, scene, state, []);
     [R_eff_end, detail_end] = Effective_rate_model(params, scene, state, []);
-    history.R_eff(end,1) = R_eff_end;
-    history.T_X(end,1) = detail_end.T_X;
-    history.T_theta(end,1) = detail_end.T_theta;
-    history.T_phi(end,1) = detail_end.T_phi;
-    history.T_rec(end,1) = detail_end.T_rec;
-    history.time_factor(end,1) = detail_end.time_factor;
+
+    if ~isfield(history,'R_sum') || isempty(history.R_sum)
+        history.R_sum = R_sum_end;
+    else
+        history.R_sum(end,1) = R_sum_end;
+    end
+    if ~isfield(history,'R_eff') || isempty(history.R_eff)
+        history.R_eff = R_eff_end;
+    else
+        history.R_eff(end,1) = R_eff_end;
+    end
+    if ~isfield(history,'T_X') || isempty(history.T_X)
+        history.T_X = detail_end.T_X;
+    else
+        history.T_X(end,1) = detail_end.T_X;
+    end
+    if ~isfield(history,'T_theta') || isempty(history.T_theta)
+        history.T_theta = detail_end.T_theta;
+    else
+        history.T_theta(end,1) = detail_end.T_theta;
+    end
+    if ~isfield(history,'T_phi') || isempty(history.T_phi)
+        history.T_phi = detail_end.T_phi;
+    else
+        history.T_phi(end,1) = detail_end.T_phi;
+    end
+    if ~isfield(history,'T_rec') || isempty(history.T_rec)
+        history.T_rec = detail_end.T_rec;
+    else
+        history.T_rec(end,1) = detail_end.T_rec;
+    end
+    if ~isfield(history,'time_factor') || isempty(history.time_factor)
+        history.time_factor = detail_end.time_factor;
+    else
+        history.time_factor(end,1) = detail_end.time_factor;
+    end
 
 else
     error('main: unsupported scheme_mode');
