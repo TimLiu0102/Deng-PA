@@ -51,10 +51,24 @@ end
 no_improve_count = 0;
 
 for r = 1:params.I_theta
-    % 当前中心真实sum rate
-    R_center = evaluate_angle_candidate(n,m,theta_c,phi_c,params,scene,state,theta_cur_all,phi_cur_all);
+    % 当前中心真实R_eff评价
+    [R_center, feasible_center] = evaluate_angle_candidate(n,m,theta_c,phi_c,params,scene,state,theta_cur_all,phi_cur_all);
+    if ~feasible_center
+        no_improve_count = no_improve_count + 1;
+        dtheta = params.beta_theta * dtheta;
+        dphi   = params.beta_phi   * dphi;
+        if re_anchor_allowed || no_improve_count >= 2
+            [theta_c, phi_c, theta_cur_all, phi_cur_all] = do_reanchoring( ...
+                n,m,params,scene,state,theta_cur_all,phi_cur_all,theta_c,phi_c);
+            no_improve_count = 0;
+        end
+        if dtheta < 1e-4 && dphi < 1e-4
+            break;
+        end
+        continue;
+    end
 
-    % 候选生成 + 真实sum rate评价
+    % 候选生成 + 真实R_eff评价
     R_best_round = -inf;
     theta_hat = theta_c;
     phi_hat = phi_c;
@@ -63,8 +77,8 @@ for r = 1:params.I_theta
         phi_try = phi_c + D(i,2)*dphi;
         [theta_try, phi_try] = project_angle_pair(theta_try, phi_try);
 
-        R_try = evaluate_angle_candidate(n,m,theta_try,phi_try,params,scene,state,theta_cur_all,phi_cur_all);
-        if R_try > R_best_round
+        [R_try, feasible_try] = evaluate_angle_candidate(n,m,theta_try,phi_try,params,scene,state,theta_cur_all,phi_cur_all);
+        if feasible_try && (R_try > R_best_round)
             R_best_round = R_try;
             theta_hat = theta_try;
             phi_hat = phi_try;
@@ -109,10 +123,9 @@ bestR = -inf;
 bestTheta = theta_c;
 bestPhi = phi_c;
 for i = 1:size(anchors,1)
-    th = anchors(i,1);
-    ph = anchors(i,2);
-    R = evaluate_angle_candidate(n,m,th,ph,params,scene,state,theta_all,phi_all);
-    if R > bestR
+    [th, ph] = project_angle_pair(anchors(i,1), anchors(i,2));
+    [R, feasible] = evaluate_angle_candidate(n,m,th,ph,params,scene,state,theta_all,phi_all);
+    if feasible && (R > bestR)
         bestR = R;
         bestTheta = th;
         bestPhi = ph;
@@ -168,14 +181,20 @@ end
 users_sel = S(idx(1:min(Krep,numel(S))));
 end
 
-function R = evaluate_angle_candidate(n,m,theta_nm,phi_nm,params,scene,state,theta_all,phi_all)
-% 仅替换单个PA角度，其他角度固定，调用真实sum rate评价
+function [R, feasible] = evaluate_angle_candidate(n,m,theta_nm,phi_nm,params,scene,state,theta_all,phi_all)
+% 仅替换单个PA角度，其他角度固定，调用真实R_eff评价
 state_tmp = state;
 state_tmp.theta = theta_all;
 state_tmp.phi = phi_all;
 state_tmp.theta(n,m) = theta_nm;
 state_tmp.phi(n,m) = phi_nm;
-R = Signal_model('sum_rate', params, scene, state_tmp, struct());
+[R_eff, detail] = Effective_rate_model(params, scene, state_tmp, []);
+feasible = detail.time_feasible;
+if feasible
+    R = R_eff;
+else
+    R = -inf;
+end
 end
 
 function [theta, phi] = project_angle_pair(theta, phi)

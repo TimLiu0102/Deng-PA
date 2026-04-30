@@ -1,5 +1,6 @@
 function state = Initialization(params, scene, model)
-% Initialization：严格对应论文初始化四步，并显式生成初始预编码矩阵 W^(0)
+% Initialization：论文初始化：候选池 -> 初始服务用户 -> 位移折扣效用 ->
+% PA关联 -> 位置投影 -> 角度 -> MRT预编码
 
 if nargin < 3
     model = struct(); %#ok<NASGU>
@@ -11,18 +12,22 @@ N = params.N; M = params.M; K = scene.K;
 [Gpot, y_star, Emax] = build_potential_gain_matrix(params, scene);
 C = build_candidate_pool(Emax, params.K_serv);
 
-%% Step 2) Global Matching and Initial User Set S^(0)
+%% Step 2) Initial User Set S^(0)
+S = build_initial_service_set_by_emax(C, Emax, params.K_serv);
+
+%% Step 3) Reference Positions
 y_ref = build_reference_positions(params);
-matching = solve_global_matching(C, Gpot, y_star, y_ref, params);
-S = build_initial_service_set(C, matching, params.K_serv);
 
-%% Step 3) Initial Position Matrix X^(0)
-X = build_initial_positions(C, matching, y_star, y_ref, params);
+%% Step 4) Displacement-discounted Utility and PA Association
+[mu0, X_bar] = build_pa_association_and_nominal_position(S, Gpot, y_star, y_ref, params);
 
-%% Step 4) Initial Orientation Angles
-[theta, phi] = build_initial_angles(C, matching, X, scene, params);
+%% Step 5) Initial Position Projection
+X = build_initial_positions_from_nominal(X_bar, params);
 
-%% Step 5) Initial Precoders W^(0) by MRT
+%% Step 6) Initial Orientation Angles
+[theta, phi] = build_initial_angles_from_assoc(mu0, X, scene, params);
+
+%% Step 7) Initial Precoders W^(0) by MRT
 tmp_state = struct();
 tmp_state.S = S;
 tmp_state.X = X;
@@ -41,9 +46,12 @@ state.W = W;
 state.C = C;
 state.Emax = Emax;
 state.Gpot = Gpot;
-state.matching = matching;
+state.matching = [];
 state.y_star = y_star;
 state.y_ref = y_ref;
+state.mu0 = mu0;
+state.assoc_user = mu0;
+state.init_mode = 'paper_reff';
 end
 
 %% ======================== 内部子函数 ========================
@@ -95,118 +103,54 @@ function y_ref = build_reference_positions(params)
 % 对应论文参考位置 y_ref_{n,m}
 N = params.N; M = params.M;
 y_ref = zeros(N,M);
-for n = 1:N
-    for m = 1:M
-        y_ref(n,m) = (m-1)*params.Delta + ((m-1)/(M-1))*(params.Dy - (M-1)*params.Delta);
-    end
-end
-end
-
-function matching = solve_global_matching(C, Gpot, y_star, y_ref, params)
-% 对应论文：maximum weight matching
-% 输出 matching.M_bin(ic,n,m)=1 表示候选用户C(ic)与PA(n,m) primary association
-
-N = params.N; M = params.M;
-Nc = numel(C);
-NPA = N*M;
-
-% 构造收益矩阵 U (Nc x NPA)
-U = -inf(Nc, NPA);
-for ic = 1:Nc
-    k = C(ic);
+if M == 1
+    y_ref(:,1) = 0;
+else
     for n = 1:N
         for m = 1:M
-            col = (n-1)*M + m;
-            d_mov = abs(y_ref(n,m) - y_star(k,n,m));
-            U(ic,col) = Gpot(k,col) - params.lambda_mov * d_mov;
+            y_ref(n,m) = (m-1)*params.Delta + ((m-1)/(M-1))*(params.Dy - (M-1)*params.Delta);
         end
     end
 end
-
-% 目标：选择K_serv条一对一匹配（用户与PA都不重复）
-maxPairs = min([params.K_serv, Nc, NPA]);
-
-if exist('matchpairs','file') == 2
-    % 目标是最大化收益 U
-    [pairs,~] = matchpairs(U, -1e12, 'max');
-    if size(pairs,1) > maxPairs
-        gain_pairs = zeros(size(pairs,1),1);
-        for i = 1:size(pairs,1)
-            gain_pairs(i) = U(pairs(i,1), pairs(i,2));
-        end
-        [~, idx_sort] = sort(gain_pairs, 'descend');
-        pairs = pairs(idx_sort(1:maxPairs), :);
-    end
-else
-    % 简洁后备：贪心一对一最大收益
-    pairs = greedy_match(U, maxPairs);
 end
 
-if isempty(pairs)
-    pairs = greedy_match(U, maxPairs);
-end
-
-M_bin = zeros(Nc, N, M);
-pair_table = zeros(size(pairs,1), 3); % [ic, n, m]
-for r = 1:size(pairs,1)
-    ic = pairs(r,1);
-    col = pairs(r,2);
-    n = ceil(col/M);
-    m = col - (n-1)*M;
-    M_bin(ic,n,m) = 1;
-    pair_table(r,:) = [ic, n, m];
-end
-
-matching = struct();
-matching.M_bin = M_bin;
-matching.pairs_ic_col = pairs;
-matching.pair_table = pair_table;
-matching.U = U;
-end
-
-function pairs = greedy_match(U, maxPairs)
-[nr,nc] = size(U);
-Uwork = U;
-pairs = zeros(0,2);
-for t = 1:maxPairs
-    [best,id] = max(Uwork(:));
-    if ~isfinite(best), break; end
-    [r,c] = ind2sub([nr,nc], id);
-    pairs(end+1,:) = [r,c]; %#ok<AGROW>
-    Uwork(r,:) = -inf;
-    Uwork(:,c) = -inf;
-end
-end
-
-function S = build_initial_service_set(C, matching, K_serv)
-% 对应论文：S^(0) = {k in C: 存在匹配}
-ic_used = unique(matching.pairs_ic_col(:,1), 'stable');
-S = C(ic_used);
-
-% 正常情况下匹配应给出K_serv个用户；若不足则从C中按顺序补齐
-if numel(S) < K_serv
-    rest = setdiff(C, S, 'stable');
-    S = [S, rest(1:min(K_serv-numel(S), numel(rest)))];
-end
-S = S(1:min(K_serv, numel(S)));
+function S = build_initial_service_set_by_emax(C, Emax, K_serv)
+% S^(0)：候选池C中按Emax降序取前K_serv
+[~, ord] = sort(Emax(C), 'descend');
+S = C(ord(1:min(K_serv, numel(C))));
 S = S(:).';
 end
 
-function X = build_initial_positions(C, matching, y_star, y_ref, params)
-% 对应论文：先名义位置，再投影到chi_n
+function [mu0, X_bar] = build_pa_association_and_nominal_position(S, Gpot, y_star, y_ref, params)
+% 对每个PA在当前服务用户集合S中选 U(k,n,m) 最大者
 N = params.N; M = params.M;
-X = y_ref;
+mu0 = zeros(N,M);
+X_bar = y_ref;
 
-% 将匹配到的PA位置设为对应 y_star
-for r = 1:size(matching.pair_table,1)
-    ic = matching.pair_table(r,1);
-    n = matching.pair_table(r,2);
-    m = matching.pair_table(r,3);
-    k = C(ic);
-    X(n,m) = y_star(k,n,m);
+for n = 1:N
+    for m = 1:M
+        col = (n-1)*M + m;
+        U_nm = -inf;
+        best_k = S(1);
+        for is = 1:numel(S)
+            k = S(is);
+            D = abs(y_star(k,n,m) - y_ref(n,m)) / params.Dy;
+            U = max(1 - params.rho * D, 0) * Gpot(k, col);
+            if U > U_nm
+                U_nm = U;
+                best_k = k;
+            end
+        end
+        mu0(n,m) = best_k;
+        X_bar(n,m) = y_star(best_k,n,m);
+    end
+end
 end
 
-% 每条波导调用Constraint_Checker投影
+function X = build_initial_positions_from_nominal(X_bar, params)
+% 对每条波导调用Constraint_Checker投影
+N = params.N; M = params.M;
+X = X_bar;
 for n = 1:N
     xbar_n = X(n,:).';
     x0_n = Constraint_Checker('project_position', params, xbar_n);
@@ -214,24 +158,21 @@ for n = 1:N
 end
 end
 
-function [theta, phi] = build_initial_angles(C, matching, X, scene, params)
-% 对应论文：匹配PA指向其主关联用户；未匹配默认(theta,phi)=(pi,0)
+function [theta, phi] = build_initial_angles_from_assoc(mu0, X, scene, params)
+% 每个PA按关联用户mu0(n,m)设置初始角度
 N = params.N; M = params.M;
 theta = pi * ones(N,M);
 phi = zeros(N,M);
 
-for r = 1:size(matching.pair_table,1)
-    ic = matching.pair_table(r,1);
-    n = matching.pair_table(r,2);
-    m = matching.pair_table(r,3);
-    k = C(ic);
-
-    qk = scene.user_pos(:,k);
-    pnm0 = [scene.xW(n); X(n,m); params.d];
-    v = qk - pnm0;
-    [th, ph] = compute_angle_from_vector(v);
-    theta(n,m) = th;
-    phi(n,m) = ph;
+for n = 1:N
+    for m = 1:M
+        k = mu0(n,m);
+        qk = scene.user_pos(:,k);
+        pnm0 = [scene.xW(n); X(n,m); params.d];
+        v = qk - pnm0;
+        [th, ph] = compute_angle_from_vector(v);
+        [theta(n,m), phi(n,m)] = project_angle_pair(th, ph);
+    end
 end
 end
 
@@ -247,6 +188,16 @@ end
 theta = acos(v(3)/r);
 theta = min(max(theta, pi/2), pi);
 phi = atan2(v(2), v(1));
+if phi <= -pi
+    phi = phi + 2*pi;
+end
+if phi > pi
+    phi = phi - 2*pi;
+end
+end
+
+function [theta, phi] = project_angle_pair(theta, phi)
+theta = min(max(theta, pi/2), pi);
 if phi <= -pi
     phi = phi + 2*pi;
 end
