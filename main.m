@@ -109,7 +109,7 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'margin';   % 'paper' | 'margin' | 'random'
+init_mode = 'paper';   % 'paper' | 'margin' | 'random'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
