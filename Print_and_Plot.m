@@ -33,7 +33,7 @@ fprintf('系统规模: N=%d, M=%d, K=%d\n', params.N, params.M, params.K);
 fprintf('服务用户数 K_serv=%d\n', model.K_serv);
 
 if ~isempty(fieldnames(baseline)) && isfield(baseline,'R_sum')
-    fprintf('\n---------------- 基线：No-optimization reference ----------------\n');
+    fprintf('\n---------------- 基线：No-optimization static-aligned reference ----------------\n');
     fprintf('基线原始 sum rate: %.6f\n', baseline.R_sum);
     if isfield(baseline,'R_eff'), fprintf('基线 R_eff: %.6f\n', baseline.R_eff); end
     if isfield(baseline,'T_rec'), fprintf('基线 T_rec: %.6f\n', baseline.T_rec); end
@@ -111,6 +111,11 @@ end
 
 if isfield(state,'S')
     fprintf('最终服务用户数是否等于 K_serv: %d\n', numel(state.S) == model.K_serv);
+end
+if isfield(state,'assoc_count') && ~isempty(state.assoc_count)
+    fprintf('初始化 PA 主关联计数 assoc_count: ');
+    fprintf('%d ', state.assoc_count);
+    fprintf('\n');
 end
 
 if isfield(history,'swap_flag') && ~isempty(history.swap_flag)
@@ -695,8 +700,7 @@ if ~isfield(scene,'xW') || ~isfield(scene,'user_pos') || ~isfield(scene,'K') || 
     return;
 end
 
-X_ref = repmat(linspace(0, params.Dy, params.M+2), params.N, 1);
-X_ref = X_ref(:,2:end-1);
+X_ref = build_reference_positions(params);
 
 rng_state = rng;
 if isfield(params,'seed') && ~isempty(params.seed)
@@ -764,6 +768,23 @@ end
 function [theta, phi] = project_angle_pair(theta, phi)
 theta = min(pi, max(pi/2, theta));
 phi = atan2(sin(phi), cos(phi));
+if phi <= -pi
+    phi = phi + 2*pi;
+end
+end
+
+function X_ref = build_reference_positions(params)
+N = params.N; M = params.M;
+X_ref = zeros(N, M);
+if M == 1
+    X_ref(:,1) = 0;
+else
+    for n = 1:N
+        for m = 1:M
+            X_ref(n,m) = (m-1)*params.Delta + ((m-1)/(M-1))*(params.Dy - (M-1)*params.Delta);
+        end
+    end
+end
 end
 
 end
