@@ -30,15 +30,34 @@ end
 
 % 纯启发式：初始点直接使用 state0，不做 AO_W 精修
 state_cur = state0;
-R_cur = Signal_model('sum_rate', params, scene, state_cur, []);
+[score_cur, R_sum_cur, detail_cur, feasible_cur] = evaluate_sa_state(params, scene, state_cur);
+if ~feasible_cur
+    [R_eff0, detail0] = Effective_rate_model(params, scene, state_cur, []);
+    score_cur = R_eff0;
+    R_sum_cur = detail0.R_sum;
+    detail_cur = detail0;
+end
 
 state_best = state_cur;
-R_best = R_cur;
+score_best = score_cur;
+R_sum_best = R_sum_cur;
+detail_best = detail_cur;
 
 history_sa = struct();
-history_sa.R_sum = R_best;
-history_sa.R_current = R_cur;
-history_sa.R_best = R_best;
+history_sa.R_eff = score_best;
+history_sa.R_eff_current = score_cur;
+history_sa.R_eff_best = score_best;
+history_sa.R_sum = R_sum_best;
+history_sa.R_sum_current = R_sum_cur;
+history_sa.R_sum_best = R_sum_best;
+% 兼容字段：R_current / R_best 现表示 R_eff
+history_sa.R_current = score_cur;
+history_sa.R_best = score_best;
+history_sa.T_X = detail_best.T_X;
+history_sa.T_theta = detail_best.T_theta;
+history_sa.T_phi = detail_best.T_phi;
+history_sa.T_rec = detail_best.T_rec;
+history_sa.time_factor = detail_best.time_factor;
 history_sa.S0 = state0.S;
 history_sa.X0 = state0.X;
 history_sa.theta0 = state0.theta;
@@ -48,6 +67,8 @@ history_sa.R_after_W = [];
 history_sa.R_after_angle = [];
 history_sa.R_after_X = [];
 history_sa.R_after_S = [];
+history_sa.X_update_mode = 'sa_joint';
+history_sa.DEBUG_X_cells = {};
 history_sa.swap_flag = false;
 
 history_sa.accept_flag = false(params.SA_max_iter, 1);
@@ -148,32 +169,47 @@ for iter = 1:params.SA_max_iter
         state_try.W = W_try;
     end
 
-    % 纯启发式：试探点评价不再调用 AO_W
-    R_try = Signal_model('sum_rate', params, scene, state_try, []);
-
-    delta = R_try - R_cur;
+    % 纯启发式：试探点评价不再调用 AO_W，接受准则用 R_eff
+    [score_try, R_sum_try, detail_try, feasible_try] = evaluate_sa_state(params, scene, state_try);
     accepted = false;
-    if delta >= 0
-        accepted = true;
-    else
-        if rand < exp(delta / T)
+    if feasible_try
+        delta = score_try - score_cur;
+        if delta >= 0
             accepted = true;
+        else
+            if rand < exp(delta / T)
+                accepted = true;
+            end
         end
     end
 
     if accepted
         state_cur = state_try;
-        R_cur = R_try;
+        score_cur = score_try;
+        R_sum_cur = R_sum_try;
+        detail_cur = detail_try;
     end
 
-    if R_try > R_best
+    if feasible_try && score_try > score_best
         state_best = state_try;
-        R_best = R_try;
+        score_best = score_try;
+        R_sum_best = R_sum_try;
+        detail_best = detail_try;
     end
 
-    history_sa.R_sum(iter+1,1) = R_best;
-    history_sa.R_current(iter+1,1) = R_cur;
-    history_sa.R_best(iter+1,1) = R_best;
+    history_sa.R_eff(iter+1,1) = score_best;
+    history_sa.R_eff_current(iter+1,1) = score_cur;
+    history_sa.R_eff_best(iter+1,1) = score_best;
+    history_sa.R_sum(iter+1,1) = R_sum_best;
+    history_sa.R_sum_current(iter+1,1) = R_sum_cur;
+    history_sa.R_sum_best(iter+1,1) = R_sum_best;
+    history_sa.R_current(iter+1,1) = score_cur;
+    history_sa.R_best(iter+1,1) = score_best;
+    history_sa.T_X(iter+1,1) = detail_best.T_X;
+    history_sa.T_theta(iter+1,1) = detail_best.T_theta;
+    history_sa.T_phi(iter+1,1) = detail_best.T_phi;
+    history_sa.T_rec(iter+1,1) = detail_best.T_rec;
+    history_sa.time_factor(iter+1,1) = detail_best.time_factor;
     history_sa.accept_flag(iter,1) = accepted;
     history_sa.move_type{iter,1} = move_type;
     history_sa.S_cells{iter,1} = state_cur.S;
@@ -183,4 +219,15 @@ for iter = 1:params.SA_max_iter
     history_sa.W_cells{iter,1} = state_cur.W;
 end
 
+end
+
+function [score, R_sum, detail, feasible] = evaluate_sa_state(params, scene, state)
+[R_eff, detail] = Effective_rate_model(params, scene, state, []);
+R_sum = detail.R_sum;
+feasible = detail.time_feasible;
+if feasible
+    score = R_eff;
+else
+    score = -inf;
+end
 end
