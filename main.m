@@ -88,7 +88,7 @@ params.T_max = 30;
 params.eps_outer = 1e-4;
 
 % 9.5) SA 联合优化参数（纯启发式联合搜索）
-params.SA_max_iter = 500;
+params.SA_max_iter = 5000;
 params.SA_T0 = 1.0;
 params.SA_alpha = 0.985;
 params.SA_step_X = 0.5;
@@ -102,14 +102,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'ao_final_w';   % 'ao_final_w' | 'w_only' | 'sa_joint' | 'hg_multiuser'
+scheme_mode = 'sa_joint';   % 'ao_final_w' | 'w_only' | 'sa_joint' | 'hg_multiuser'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'paper';   % 'paper' | 'margin' | 'random' | 'uniform'
+init_mode = 'uniform';   % 'paper' | 'margin' | 'random' | 'uniform'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
