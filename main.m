@@ -109,7 +109,7 @@ scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'paper';   % 'paper' | 'margin' | 'random'
+init_mode = 'paper';   % 'paper' | 'margin' | 'random' | 'uniform'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
@@ -117,6 +117,8 @@ elseif strcmp(init_mode, 'margin')
     state = Initialization_margin(params, scene, model);
 elseif strcmp(init_mode, 'random')
     state = Initialization_ra(params, scene, model);
+elseif strcmp(init_mode, 'uniform')
+    state = Initialization_uniform(params, scene, model);
 else
     error('main: unsupported init_mode');
 end

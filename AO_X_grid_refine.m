@@ -65,10 +65,12 @@ for it = 1:params.I_X_refine
 
         x_now = X_cur(n,m);
 
-        % 当前点评价
-        state_cur = state;
-        state_cur.X = X_cur;
-        R_cur = Signal_model('sum_rate', params, scene, state_cur, []);
+        % 当前点有效速率目标评价（R_eff）
+        [R_cur, feasible_cur] = evaluate_X_candidate(params, scene, state, X_cur);
+        if ~feasible_cur
+            % 当前点若超时不可行，仍记录其R_eff值用于比较/调试基准
+            R_cur = evaluate_X_value(params, scene, state, X_cur);
+        end
 
         % 无可行空间：跳过
         if lb > ub
@@ -125,7 +127,7 @@ for it = 1:params.I_X_refine
         candidates = min(max(candidates, lb), ub);
         candidates = unique(candidates);
 
-        % 候选点评价
+        % 候选点评价（仅接受 time-feasible 且 R_eff 提升的候选）
         R_candidates = zeros(numel(candidates),1);
         best_R = R_cur;
         best_x = x_now;
@@ -136,12 +138,10 @@ for it = 1:params.I_X_refine
             X_candidate = X_cur;
             X_candidate(n,m) = x_try;
 
-            state_tmp = state;
-            state_tmp.X = X_candidate;
-            R_try = Signal_model('sum_rate', params, scene, state_tmp, []);
+            [R_try, feasible_try] = evaluate_X_candidate(params, scene, state, X_candidate);
 
             R_candidates(c) = R_try;
-            if R_try > best_R + params.eps_X_refine
+            if feasible_try && (R_try > best_R + params.eps_X_refine)
                 best_R = R_try;
                 best_x = x_try;
                 best_idx = c;
@@ -160,7 +160,7 @@ for it = 1:params.I_X_refine
             DEBUG_X_pa_m = struct();
             DEBUG_X_pa_m.DEBUG_X_x_cur = x_now;
             DEBUG_X_pa_m.DEBUG_X_grid_xm_proj = candidates(:);
-            DEBUG_X_pa_m.DEBUG_X_grid_delta_f = R_candidates(:) - R_cur;
+            DEBUG_X_pa_m.DEBUG_X_grid_delta_f = R_candidates(:) - R_cur; % R_eff增量
             DEBUG_X_pa_m.DEBUG_X_best_grid_index = best_idx;
             DEBUG_X_pa_m.DEBUG_X_best_x = best_x;
             DEBUG_X_pa_m.DEBUG_X_best_R = best_R;
@@ -197,5 +197,25 @@ for it = 1:params.I_X_refine
     if norm(X_cur(n,:) - x_old_round, inf) < 1e-12
         break;
     end
+end
+
+function [R_eff_val, feasible] = evaluate_X_candidate(params, scene, state, X_candidate)
+% 候选点评价：以R_eff为目标，并做 T_rec <= T_f 可行性过滤
+state_tmp = state;
+state_tmp.X = X_candidate;
+[R_eff, detail] = Effective_rate_model(params, scene, state_tmp, []);
+feasible = detail.time_feasible;
+if feasible
+    R_eff_val = R_eff;
+else
+    R_eff_val = -inf;
+end
+end
+
+function R_eff_val = evaluate_X_value(params, scene, state, X_candidate)
+% 当前点纯R_eff值（不做time_feasible过滤）
+state_tmp = state;
+state_tmp.X = X_candidate;
+[R_eff_val, ~] = Effective_rate_model(params, scene, state_tmp, []);
 end
 end
