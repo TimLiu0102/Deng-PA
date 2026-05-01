@@ -21,39 +21,78 @@ if has_full_state
     end
 end
 
+%% ======================== No-optimization reference baseline ========================
+baseline = struct();
+if isfield(model,'K_serv') && isfield(params,'N') && isfield(params,'M') && isfield(params,'K')
+    baseline = build_no_optimization_reference(params, scene, model.K_serv);
+end
+
 %% ======================== 命令行打印 ========================
 fprintf('\n================ 结果汇总 ================\n');
 fprintf('系统规模: N=%d, M=%d, K=%d\n', params.N, params.M, params.K);
 fprintf('服务用户数 K_serv=%d\n', model.K_serv);
 
+if ~isempty(fieldnames(baseline)) && isfield(baseline,'R_sum')
+    fprintf('\n---------------- 基线：No-optimization reference ----------------\n');
+    fprintf('基线原始 sum rate: %.6f\n', baseline.R_sum);
+    if isfield(baseline,'R_eff'), fprintf('基线 R_eff: %.6f\n', baseline.R_eff); end
+    if isfield(baseline,'T_rec'), fprintf('基线 T_rec: %.6f\n', baseline.T_rec); end
+    if isfield(baseline,'time_factor'), fprintf('基线 time factor: %.6f\n', baseline.time_factor); end
+    if isfield(baseline,'frame_payload'), fprintf('基线 frame payload R_eff*T_f: %.6f\n', baseline.frame_payload); end
+    if isfield(baseline,'S') && ~isempty(baseline.S)
+        fprintf('基线随机服务用户集合 S_ref: ');
+        fprintf('%d ', baseline.S);
+        fprintf('\n');
+    end
+end
+
+fprintf('\n---------------- 初始化后：Proposed initialization ----------------\n');
+if isfield(history,'R_sum') && ~isempty(history.R_sum)
+    fprintf('初始化后原始 sum rate: %.6f\n', history.R_sum(1));
+end
 if isfield(history,'R_eff') && ~isempty(history.R_eff)
-    R_eff_hist = history.R_eff(:);
-    fprintf('初始 R_eff: %.6f\n', R_eff_hist(1));
-    fprintf('最终 R_eff: %.6f\n', R_eff_hist(end));
-    fprintf('外层迭代次数: %d\n', numel(R_eff_hist)-1);
+    fprintf('初始化后 R_eff: %.6f\n', history.R_eff(1));
+    fprintf('初始化后 frame payload R_eff*T_f: %.6f\n', history.R_eff(1)*params.T_f);
+end
+if isfield(history,'T_rec') && ~isempty(history.T_rec)
+    fprintf('初始化后 T_rec: %.6f\n', history.T_rec(1));
+end
+if isfield(history,'time_factor') && ~isempty(history.time_factor)
+    fprintf('初始化后 time factor: %.6f\n', history.time_factor(1));
+end
+
+fprintf('\n---------------- 最终结果：Full optimization ----------------\n');
+if isfield(history,'R_sum') && ~isempty(history.R_sum)
+    fprintf('最终原始 sum rate: %.6f\n', history.R_sum(end));
+end
+if isfield(history,'R_eff') && ~isempty(history.R_eff)
+    fprintf('最终 R_eff: %.6f\n', history.R_eff(end));
+    fprintf('最终 frame payload R_eff*T_f: %.6f\n', history.R_eff(end)*params.T_f);
+end
+if isfield(history,'T_X') && ~isempty(history.T_X), fprintf('最终 T_X: %.6f\n', history.T_X(end)); end
+if isfield(history,'T_theta') && ~isempty(history.T_theta), fprintf('最终 T_theta: %.6f\n', history.T_theta(end)); end
+if isfield(history,'T_phi') && ~isempty(history.T_phi), fprintf('最终 T_phi: %.6f\n', history.T_phi(end)); end
+if isfield(history,'T_rec') && ~isempty(history.T_rec), fprintf('最终 T_rec: %.6f\n', history.T_rec(end)); end
+if isfield(history,'time_factor') && ~isempty(history.time_factor), fprintf('最终 time factor: %.6f\n', history.time_factor(end)); end
+
+if ~isempty(fieldnames(baseline)) && isfield(baseline,'frame_payload') ...
+        && isfield(history,'R_eff') && ~isempty(history.R_eff)
+    payload_final = history.R_eff(end) * params.T_f;
+    payload_gain = payload_final - baseline.frame_payload;
+    fprintf('相对基线 payload 增益: %.6f\n', payload_gain);
+    if baseline.frame_payload > 0
+        payload_gain_ratio = payload_gain / baseline.frame_payload * 100;
+        fprintf('相对基线 payload 提升比例: %.6f %%\n', payload_gain_ratio);
+    end
+end
+
+if isfield(history,'R_eff') && ~isempty(history.R_eff)
+    fprintf('外层迭代次数: %d\n', numel(history.R_eff(:))-1);
 elseif isfield(history,'R_sum') && ~isempty(history.R_sum)
     fprintf('R_eff 历史缺失，外层迭代次数改按 R_sum 估计。\n');
     fprintf('外层迭代次数: %d\n', numel(history.R_sum(:))-1);
 else
     fprintf('R_eff / R_sum 历史均缺失，无法打印收敛信息。\n');
-end
-
-if isfield(history,'R_sum') && ~isempty(history.R_sum)
-    R_hist = history.R_sum(:);
-    fprintf('初始原始 sum rate: %.6f\n', R_hist(1));
-    fprintf('最终原始 sum rate: %.6f\n', R_hist(end));
-end
-
-if isfield(history,'T_X') && ~isempty(history.T_X) ...
-        && isfield(history,'T_theta') && ~isempty(history.T_theta) ...
-        && isfield(history,'T_phi') && ~isempty(history.T_phi) ...
-        && isfield(history,'T_rec') && ~isempty(history.T_rec) ...
-        && isfield(history,'time_factor') && ~isempty(history.time_factor)
-    fprintf('最终 T_X: %.6f\n', history.T_X(end));
-    fprintf('最终 T_theta: %.6f\n', history.T_theta(end));
-    fprintf('最终 T_phi: %.6f\n', history.T_phi(end));
-    fprintf('最终 T_rec: %.6f\n', history.T_rec(end));
-    fprintf('最终 time factor: %.6f\n', history.time_factor(end));
 end
 
 if isfield(state,'S')
@@ -648,5 +687,83 @@ if isfield(history,'DEBUG_X_cells') && ~isempty(history.DEBUG_X_cells)
     end
 end
 %% ======================== DEBUG_X END ==========================
+
+
+function baseline = build_no_optimization_reference(params, scene, K_serv)
+baseline = struct();
+if ~isfield(scene,'xW') || ~isfield(scene,'user_pos') || ~isfield(scene,'K') || K_serv <= 0 || scene.K < K_serv
+    return;
+end
+
+X_ref = repmat(linspace(0, params.Dy, params.M+2), params.N, 1);
+X_ref = X_ref(:,2:end-1);
+
+rng_state = rng;
+if isfield(params,'seed') && ~isempty(params.seed)
+    rng(params.seed + 9001);
+else
+    rng(9001);
+end
+S_ref = randperm(scene.K, K_serv);
+rng(rng_state);
+
+theta_ref = pi/2 * ones(params.N, params.M);
+phi_ref = zeros(params.N, params.M);
+for n = 1:params.N
+    for m = 1:params.M
+        p = (n-1)*params.M + m;
+        k_align = S_ref(mod(p-1, K_serv) + 1);
+        p_nm = [scene.xW(n); X_ref(n,m); params.d];
+        v = scene.user_pos(:,k_align) - p_nm;
+        [theta_nm, phi_nm] = angle_from_vector(v);
+        [theta_ref(n,m), phi_ref(n,m)] = project_angle_pair(theta_nm, phi_nm);
+    end
+end
+
+state_ref = struct('S',S_ref,'X',X_ref,'theta',theta_ref,'phi',phi_ref);
+extra_ch = [];
+if isfield(scene,'extra_ch')
+    extra_ch = scene.extra_ch;
+end
+ch = Channel_model('all_users', params, scene, state_ref, extra_ch);
+H = ch.H(:, S_ref);
+W_ref = zeros(size(H));
+for i = 1:size(H,2)
+    hi = H(:,i);
+    nrm = norm(hi);
+    if nrm > 0
+        W_ref(:,i) = hi / nrm;
+    end
+end
+pw = real(trace(W_ref * W_ref'));
+if pw > params.P_max && pw > 0
+    W_ref = W_ref * sqrt(params.P_max / pw);
+end
+state_ref.W = W_ref;
+R_sum_ref = Signal_model('sum_rate', params, scene, state_ref, []);
+
+baseline.S = S_ref;
+baseline.R_sum = R_sum_ref;
+baseline.R_eff = R_sum_ref;
+baseline.T_rec = 0;
+baseline.time_factor = 1;
+baseline.frame_payload = R_sum_ref * params.T_f;
+end
+
+function [theta, phi] = angle_from_vector(v)
+nv = norm(v);
+if nv <= 0
+    theta = pi/2;
+    phi = 0;
+    return;
+end
+theta = acos(max(min(v(3)/nv,1),-1));
+phi = atan2(v(2), v(1));
+end
+
+function [theta, phi] = project_angle_pair(theta, phi)
+theta = min(pi, max(pi/2, theta));
+phi = atan2(sin(phi), cos(phi));
+end
 
 end
