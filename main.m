@@ -45,7 +45,7 @@ params.lambda_mov = 0.05;
 
 % 4.5) 有效速率模型参数
 params.T_f = 5;             % frame duration, s
-params.v_PA = 2;            % PA moving speed, m/s
+params.v_PA = 4;            % PA moving speed, m/s
 params.omega_theta = 300;   % elevation rotation speed, rad/s
 params.omega_phi = 300;     % azimuth rotation speed, rad/s
 params.rho = 0.5;
