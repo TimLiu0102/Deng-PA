@@ -726,7 +726,7 @@ if isfield(scene,'extra_ch')
     extra_ch = scene.extra_ch;
 end
 ch = Channel_model('all_users', params, scene, state_ref, extra_ch);
-H = ch.H(:, S_ref);
+H = ch.H;
 W_ref = zeros(size(H));
 for i = 1:size(H,2)
     hi = H(:,i);
