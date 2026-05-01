@@ -237,7 +237,7 @@ if strcmp(scheme_mode, 'ao_final_w')
         history.swap_flag(end+1,1) = state.swap_flag;
 
         %% ======================== DEBUG_X START ========================
-        history.DEBUG_X_cells{t,1} = DEBUG_X_t;
+        % history.DEBUG_X_cells{t,1} = DEBUG_X_t;
         %% ======================== DEBUG_X END ==========================
 
         % 8) 外层停止判断
