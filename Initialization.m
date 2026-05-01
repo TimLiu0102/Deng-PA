@@ -51,6 +51,11 @@ state.y_star = y_star;
 state.y_ref = y_ref;
 state.mu0 = mu0;
 state.assoc_user = mu0;
+assoc_count = zeros(1, numel(S));
+for i = 1:numel(S)
+    assoc_count(i) = sum(mu0(:) == S(i));
+end
+state.assoc_count = assoc_count;
 state.init_mode = 'paper_reff';
 end
 
@@ -122,28 +127,100 @@ S = S(:).';
 end
 
 function [mu0, X_bar] = build_pa_association_and_nominal_position(S, Gpot, y_star, y_ref, params)
-% 对每个PA在当前服务用户集合S中选 U(k,n,m) 最大者
+% 两步分配：
+% Step A 先覆盖所有服务用户（每个用户至少一个PA主关联）
+% Step B 剩余PA再按原效用贪心分配
 N = params.N; M = params.M;
+NPA = N * M;
+Kserv = numel(S);
 mu0 = zeros(N,M);
 X_bar = y_ref;
 
-for n = 1:N
-    for m = 1:M
-        col = (n-1)*M + m;
-        U_nm = -inf;
-        best_k = S(1);
-        for is = 1:numel(S)
-            k = S(is);
+% U_serv(i,col): i为服务用户索引，col为PA展平索引
+U_serv = -inf(Kserv, NPA);
+for is = 1:Kserv
+    k = S(is);
+    for n = 1:N
+        for m = 1:M
+            col = (n-1)*M + m;
             D = abs(y_star(k,n,m) - y_ref(n,m)) / params.Dy;
-            U = max(1 - params.rho * D, 0) * Gpot(k, col);
-            if U > U_nm
-                U_nm = U;
-                best_k = k;
-            end
+            U_serv(is,col) = max(1 - params.rho * D, 0) * Gpot(k, col);
         end
-        mu0(n,m) = best_k;
-        X_bar(n,m) = y_star(best_k,n,m);
     end
+end
+
+% Step A: 用户覆盖分配（每个用户至少一次，且PA不重复）
+pairs = zeros(0,2); % 每行 [i_user, col_pa]
+if exist('matchpairs', 'file') == 2
+    tmp_pairs = matchpairs(U_serv, -1e12, 'max');
+    if ~isempty(tmp_pairs)
+        take_num = min(size(tmp_pairs,1), Kserv);
+        pairs = tmp_pairs(1:take_num, :);
+    end
+else
+    U_work = U_serv;
+    for t = 1:min(Kserv, NPA)
+        [mx, idx] = max(U_work(:));
+        if ~isfinite(mx)
+            break;
+        end
+        [i_user, col_pa] = ind2sub(size(U_work), idx);
+        pairs(end+1,:) = [i_user, col_pa]; %#ok<AGROW>
+        U_work(i_user,:) = -inf;
+        U_work(:,col_pa) = -inf;
+    end
+end
+
+used_pa = false(1, NPA);
+covered_user = false(1, Kserv);
+
+% 写入已找到的覆盖配对
+for r = 1:size(pairs,1)
+    i_user = pairs(r,1);
+    col_pa = pairs(r,2);
+    if i_user < 1 || i_user > Kserv || col_pa < 1 || col_pa > NPA
+        continue;
+    end
+    if covered_user(i_user) || used_pa(col_pa)
+        continue;
+    end
+    k = S(i_user);
+    n = floor((col_pa-1)/M) + 1;
+    m = mod(col_pa-1, M) + 1;
+    mu0(n,m) = k;
+    X_bar(n,m) = y_star(k,n,m);
+    covered_user(i_user) = true;
+    used_pa(col_pa) = true;
+end
+
+% 极端情况下补齐未覆盖用户
+for i_user = 1:Kserv
+    if covered_user(i_user)
+        continue;
+    end
+    free_cols = find(~used_pa);
+    if isempty(free_cols)
+        break;
+    end
+    [~, loc] = max(U_serv(i_user, free_cols));
+    col_pa = free_cols(loc);
+    k = S(i_user);
+    n = floor((col_pa-1)/M) + 1;
+    m = mod(col_pa-1, M) + 1;
+    mu0(n,m) = k;
+    X_bar(n,m) = y_star(k,n,m);
+    covered_user(i_user) = true;
+    used_pa(col_pa) = true;
+end
+
+% Step B: 剩余PA按原效用贪心
+for col_pa = find(~used_pa)
+    [~, i_best] = max(U_serv(:, col_pa));
+    k_best = S(i_best);
+    n = floor((col_pa-1)/M) + 1;
+    m = mod(col_pa-1, M) + 1;
+    mu0(n,m) = k_best;
+    X_bar(n,m) = y_star(k_best,n,m);
 end
 end
 
