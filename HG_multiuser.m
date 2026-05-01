@@ -347,6 +347,8 @@ end
 
 function history_hg = build_history_hg(params, scene, state0, state_best, assoc, primary_pairs, greedy_pairs, tune_info)
 % 构造与现有流程兼容的历史输出
+% 说明：HG_multiuser 内部优化目标仍是原始 R_sum；
+% 这里额外记录 R_eff 与重构时间项，仅用于最终综合评价对比。
 history_hg = struct();
 
 history_hg.X0 = state0.X;
@@ -358,6 +360,14 @@ history_hg.rates0 = Signal_model('individual_rates', params, scene, state0, []);
 R0 = Signal_model('sum_rate', params, scene, state0, []);
 R_final = Signal_model('sum_rate', params, scene, state_best, []);
 history_hg.R_sum = [R0; R_final];
+[R_eff0, detail0] = Effective_rate_model(params, scene, state0, []);
+[R_eff_final, detail_final] = Effective_rate_model(params, scene, state_best, []);
+history_hg.R_eff = [R_eff0; R_eff_final];
+history_hg.T_X = [detail0.T_X; detail_final.T_X];
+history_hg.T_theta = [detail0.T_theta; detail_final.T_theta];
+history_hg.T_phi = [detail0.T_phi; detail_final.T_phi];
+history_hg.T_rec = [detail0.T_rec; detail_final.T_rec];
+history_hg.time_factor = [detail0.time_factor; detail_final.time_factor];
 
 history_hg.R_after_W = R_final;
 history_hg.R_after_angle = [];
@@ -365,6 +375,7 @@ history_hg.R_after_X = [];
 history_hg.R_after_S = [];
 history_hg.R_before_final_W = [];
 history_hg.R_after_final_W = R_final;
+history_hg.R_eff_after_final = R_eff_final;
 
 history_hg.S_cells = {state_best.S};
 history_hg.X_cells = {state_best.X};
