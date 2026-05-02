@@ -102,14 +102,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'sa_joint';   % 'ao_final_w' | 'w_only' | 'sa_joint' | 'hg_multiuser'
+scheme_mode = 'fixedX';   % 'ao_final_w' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'uniform';   % 'paper' | 'margin' | 'random' | 'uniform'
+init_mode = 'fixedX';   % 'paper' | 'margin' | 'random' | 'uniform' | 'fixedX'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
@@ -119,6 +119,8 @@ elseif strcmp(init_mode, 'random')
     state = Initialization_ra(params, scene, model);
 elseif strcmp(init_mode, 'uniform')
     state = Initialization_uniform(params, scene, model);
+elseif strcmp(init_mode, 'fixedX')
+    state = Initialization_fixedX(params, scene, model);
 else
     error('main: unsupported init_mode');
 end
@@ -253,6 +255,9 @@ if strcmp(scheme_mode, 'ao_final_w')
         R_old = R_new;
     end
 
+
+elseif strcmp(scheme_mode, 'fixedX')
+    [state, history] = AO_fixedX(params, scene, model, state);
 
 elseif strcmp(scheme_mode, 'w_only')
     history.X_update_mode = 'none';
