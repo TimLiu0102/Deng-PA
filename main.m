@@ -42,6 +42,9 @@ params.sigma2 = 5e-9;
 
 % 4) 初始化参数
 params.lambda_mov = 0.05;
+params.init_X_grid_num = 21;
+params.init_X_tau_max = 1.0;
+% params.init_X_move_max = 1.0;
 
 % 4.5) 有效速率模型参数
 params.T_f = 5;             % frame duration, s
@@ -102,14 +105,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'sa_joint';   % 'ao_final_w' | 'w_only' | 'sa_joint' | 'hg_multiuser'
+scheme_mode = 'ao_final_w';   % 'ao_final_w' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'uniform';   % 'paper' | 'margin' | 'random' | 'uniform'
+init_mode = 'reffX';   % 'paper' | 'margin' | 'random' | 'uniform' | 'fixedX' | 'reffX'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
@@ -119,6 +122,10 @@ elseif strcmp(init_mode, 'random')
     state = Initialization_ra(params, scene, model);
 elseif strcmp(init_mode, 'uniform')
     state = Initialization_uniform(params, scene, model);
+elseif strcmp(init_mode, 'fixedX')
+    state = Initialization_fixedX(params, scene, model);
+elseif strcmp(init_mode, 'reffX')
+    state = Initialization_reffX(params, scene, model);
 else
     error('main: unsupported init_mode');
 end
@@ -253,6 +260,9 @@ if strcmp(scheme_mode, 'ao_final_w')
         R_old = R_new;
     end
 
+
+elseif strcmp(scheme_mode, 'fixedX')
+    [state, history] = AO_fixedX(params, scene, model, state);
 
 elseif strcmp(scheme_mode, 'w_only')
     history.X_update_mode = 'none';
