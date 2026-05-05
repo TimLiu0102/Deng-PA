@@ -1,6 +1,6 @@
 function state = Initialization_fixedX(params, scene, model)
-% Initialization：论文初始化：候选池 -> 初始服务用户 -> 位移折扣效用 ->
-% PA关联 -> 位置投影 -> 角度 -> MRT预编码
+% Initialization：fixedX初始化：固定阵列 -> 候选池 -> 初始服务用户 ->
+% PA关联 -> 角度 -> MRT预编码
 
 if nargin < 3
     model = struct(); %#ok<NASGU>
@@ -8,26 +8,28 @@ end
 
 N = params.N; M = params.M; K = scene.K;
 
-%% Step 1) Potential Gain Matrix and Candidate User Pool
-[Gpot, y_star, Emax] = build_potential_gain_matrix(params, scene);
-C = build_candidate_pool(Emax, params.K_serv);
-
-%% Step 2) Initial User Set S^(0)
-S = build_initial_service_set_by_emax(C, Emax, params.K_serv);
-
-%% Step 3) Reference Positions
+%% Step 1) Reference Positions
 y_ref = build_reference_positions(params);
 
-%% Step 4) Displacement-discounted Utility and PA Association
-[mu0, X_bar] = build_pa_association_and_nominal_position(S, Gpot, y_star, y_ref, params);
-
-%% Step 5) Fixed Initial Position
+%% Step 2) Fixed Initial Position
 X = y_ref;
 
-%% Step 6) Initial Orientation Angles
+%% Step 3) Potential Gain Matrix under fixed X
+[Gpot, Emax] = build_potential_gain_matrix_fixedX(params, scene, X);
+
+%% Step 4) Candidate User Pool
+C = build_candidate_pool(Emax, params.K_serv);
+
+%% Step 5) Initial User Set S^(0)
+S = build_initial_service_set_by_emax(C, Emax, params.K_serv);
+
+%% Step 6) PA Association under fixed X
+[mu0, X_bar] = build_pa_association_and_nominal_position_fixedX(S, Gpot, y_ref, params); %#ok<ASGLU>
+
+%% Step 7) Initial Orientation Angles
 [theta, phi] = build_initial_angles_from_assoc(mu0, X, scene, params);
 
-%% Step 7) Initial Precoders W^(0) by MRT
+%% Step 8) Initial Precoders W^(0) by MRT
 tmp_state = struct();
 tmp_state.S = S;
 tmp_state.X = X;
@@ -47,7 +49,7 @@ state.C = C;
 state.Emax = Emax;
 state.Gpot = Gpot;
 state.matching = [];
-state.y_star = y_star;
+state.y_star = [];
 state.y_ref = y_ref;
 state.mu0 = mu0;
 state.assoc_user = mu0;
@@ -56,36 +58,29 @@ for i = 1:numel(S)
     assoc_count(i) = sum(mu0(:) == S(i));
 end
 state.assoc_count = assoc_count;
-state.init_mode = 'fixedX_proposed';
+state.init_mode = 'fixedX_uniform';
 end
 
 %% ======================== 内部子函数 ========================
-function [Gpot, y_star, Emax] = build_potential_gain_matrix(params, scene)
-% 对应论文：Potential Gain Matrix + Emax
+function [Gpot, Emax] = build_potential_gain_matrix_fixedX(params, scene, X)
+% fixedX：基于固定阵列位置X构造Potential Gain Matrix + Emax
 N = params.N; M = params.M; K = scene.K;
 
 Gpot = zeros(K, N*M);      % K x (N*M), 元素为 |h_k,n,m^(0)|
-y_star = zeros(K, N, M);   % y_star(k,n,m)
 
 for k = 1:K
     qk = scene.user_pos(:,k);
-    xk = qk(1); yk = qk(2); zk = qk(3);
 
     for n = 1:N
-        A_kn = (xk - scene.xW(n))^2 + (zk - params.d)^2;
-        den = (2*log(params.alphaL))^2 - params.alphaW^2;
-        gamma_star = sqrt(A_kn * params.alphaW^2 / den);
-
         for m = 1:M
-            y_star(k,n,m) = yk - gamma_star;
-            p_star = [scene.xW(n); y_star(k,n,m); params.d];
-            d_star = norm(qk - p_star);
+            p_fixed = [scene.xW(n); X(n,m); params.d];
+            d_fixed = norm(qk - p_fixed);
 
             h_abs = sqrt(1/M) ...
-                * exp(-(params.alphaW/2) * y_star(k,n,m)) ...
-                * (params.alphaL^d_star) ...
+                * exp(-(params.alphaW/2) * X(n,m)) ...
+                * (params.alphaL^d_fixed) ...
                 * (params.lambda * params.n_refr * params.v * sqrt(2*params.a*params.b)) ...
-                  / (2 * d_star);
+                  / (2 * d_fixed);
 
             col = (n-1)*M + m;
             Gpot(k,col) = h_abs;
@@ -126,10 +121,10 @@ S = C(ord(1:min(K_serv, numel(C))));
 S = S(:).';
 end
 
-function [mu0, X_bar] = build_pa_association_and_nominal_position(S, Gpot, y_star, y_ref, params)
-% 两步分配：
+function [mu0, X_bar] = build_pa_association_and_nominal_position_fixedX(S, Gpot, y_ref, params)
+% 两步分配（fixedX）：
 % Step A 先覆盖所有服务用户（每个用户至少一个PA主关联）
-% Step B 剩余PA再按原效用贪心分配
+% Step B 剩余PA再按固定阵列效用贪心分配
 N = params.N; M = params.M;
 NPA = N * M;
 Kserv = numel(S);
@@ -143,8 +138,7 @@ for is = 1:Kserv
     for n = 1:N
         for m = 1:M
             col = (n-1)*M + m;
-            D = abs(y_star(k,n,m) - y_ref(n,m)) / params.Dy;
-            U_serv(is,col) = max(1 - params.rho * D, 0) * Gpot(k, col);
+            U_serv(is,col) = Gpot(k, col);
         end
     end
 end
@@ -188,7 +182,6 @@ for r = 1:size(pairs,1)
     n = floor((col_pa-1)/M) + 1;
     m = mod(col_pa-1, M) + 1;
     mu0(n,m) = k;
-    X_bar(n,m) = y_star(k,n,m);
     covered_user(i_user) = true;
     used_pa(col_pa) = true;
 end
@@ -208,19 +201,17 @@ for i_user = 1:Kserv
     n = floor((col_pa-1)/M) + 1;
     m = mod(col_pa-1, M) + 1;
     mu0(n,m) = k;
-    X_bar(n,m) = y_star(k,n,m);
     covered_user(i_user) = true;
     used_pa(col_pa) = true;
 end
 
-% Step B: 剩余PA按原效用贪心
+% Step B: 剩余PA按固定阵列效用贪心
 for col_pa = find(~used_pa)
     [~, i_best] = max(U_serv(:, col_pa));
     k_best = S(i_best);
     n = floor((col_pa-1)/M) + 1;
     m = mod(col_pa-1, M) + 1;
     mu0(n,m) = k_best;
-    X_bar(n,m) = y_star(k_best,n,m);
 end
 end
 

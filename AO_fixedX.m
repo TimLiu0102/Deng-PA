@@ -36,21 +36,26 @@ history.theta_cells = {};
 history.phi_cells = {};
 history.swap_flag = false;
 history.X_update_mode = 'fixedX';
+X_fixed = state.X;
 
 for t = 1:params.T_max
     state.t = t;
 
+    state.X = X_fixed;
     state.W = AO_W(params, scene, model, state);
     R_after_W = Signal_model('sum_rate', params, scene, state, []);
     [R_eff_after_W, ~] = Effective_rate_model(params, scene, state, []);
 
+    state.X = X_fixed;
     [state.theta, state.phi] = AO_angle(params, scene, model, state);
     R_after_angle = Signal_model('sum_rate', params, scene, state, []);
     [R_eff_after_angle, ~] = Effective_rate_model(params, scene, state, []);
 
+    state.X = X_fixed;
     R_after_X = R_after_angle;
     R_eff_after_X = R_eff_after_angle;
 
+    state.X = X_fixed;
     [state.S, state.swap_flag] = AO_S(params, scene, model, state);
     R_after_S = Signal_model('sum_rate', params, scene, state, []);
     [R_eff_after_S, detail_S] = Effective_rate_model(params, scene, state, []);
