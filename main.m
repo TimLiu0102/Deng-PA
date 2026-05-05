@@ -47,7 +47,7 @@ params.init_X_tau_max = 1.0;
 % params.init_X_move_max = 1.0;
 
 % 4.5) 有效速率模型参数
-params.T_f = 5;             % frame duration, s
+params.T_f = 10;             % frame duration, s
 params.v_PA = 9;            % PA moving speed, m/s
 params.omega_theta = 300;   % elevation rotation speed, rad/s
 params.omega_phi = 300;     % azimuth rotation speed, rad/s
@@ -105,14 +105,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'hg_multiuser';   % 'ao_final_w' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser'
+scheme_mode = 'fixedX';   % 'ao_final_w' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'uniform';   % 'paper' | 'margin' | 'random' | 'uniform' | 'fixedX' | 'reffX'
+init_mode = 'fixedX';   % 'paper' | 'margin' | 'random' | 'uniform' | 'fixedX' | 'reffX'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
