@@ -17,14 +17,14 @@ params.K_serv = min(params.NRF, params.K_max);
 
 % 2) 几何参数
 params.Dx = 10;
-params.Dy = 25.5;
+params.Dy = 10;
 params.d = 3;
 params.Delta = 0.5;
 
 
 % 用户位置
 params.user_x_rng = [1, 20];
-params.user_y_rng = [5, 20];
+params.user_y_rng = [0, 20];
 
 % 3) 信道参数
 params.lambda = 0.01;
@@ -51,7 +51,7 @@ params.T_f = 5;             % frame duration, s
 params.v_PA = 9;            % PA moving speed, m/s
 params.omega_theta = 300;   % elevation rotation speed, rad/s
 params.omega_phi = 300;     % azimuth rotation speed, rad/s
-params.rho = 1;
+params.rho = 1.5;
 
 % 5) WMMSE 参数
 params.I_W = 40;
@@ -105,14 +105,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'ao_final_w';   % 'ao_final_w' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser'
+scheme_mode = 'hg_multiuser';   % 'ao_final_w' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'paper';   % 'paper' | 'margin' | 'random' | 'uniform' | 'fixedX' | 'reffX'
+init_mode = 'uniform';   % 'paper' | 'margin' | 'random' | 'uniform' | 'fixedX' | 'reffX'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
