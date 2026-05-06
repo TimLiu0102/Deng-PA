@@ -23,7 +23,7 @@ params.Delta = 0.5;
 
 
 % 用户位置
-params.user_x_rng = [1, 20];
+params.user_x_rng = [0, 20];
 params.user_y_rng = [0, 20];
 
 % 3) 信道参数
