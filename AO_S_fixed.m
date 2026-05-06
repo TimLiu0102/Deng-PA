@@ -49,10 +49,11 @@ for iter_swap = 1:max_swaps
             user_out = J_strong(b);
 
             S_candidate = S_new;
-            if S_candidate(pos_in_S) ~= user_in
-                pos_in_S = find(S_candidate == user_in, 1);
+            pos_tmp = pos_in_S;
+            if S_candidate(pos_tmp) ~= user_in
+                pos_tmp = find(S_candidate == user_in, 1);
             end
-            S_candidate(pos_in_S) = user_out;
+            S_candidate(pos_tmp) = user_out;
 
             state_candidate = state_now;
             state_candidate.S = S_candidate;

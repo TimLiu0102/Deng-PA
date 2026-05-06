@@ -46,6 +46,11 @@ state.C = 1:scene.K;
 state.Emax = [];
 state.Gpot = [];
 state.y_star = [];
+state.matching = [];
+state.y_ref = X_ref;
+state.mu0 = [];
+state.assoc_user = [];
+state.assoc_count = [];
 state.swap_flag = false;
 state.init_mode = 'uniform_neutral';
 end

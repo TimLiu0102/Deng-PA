@@ -328,11 +328,15 @@ elseif strcmp(scheme_mode, 'fixed_antenna_ws')
     history.X_update_mode = 'fixed_antenna_ws';
 
     X_fixed = state.X;
-    theta_fixed = state.theta;
-    phi_fixed = state.phi;
+    theta_fixed = pi * ones(params.N, params.M);
+    phi_fixed = zeros(params.N, params.M);
+    state.X = X_fixed;
+    state.theta = theta_fixed;
+    state.phi = phi_fixed;
 
     for t = 1:params.T_max
         state.t = t;
+        state.swap_flag = false;
         state.X = X_fixed;
         state.theta = theta_fixed;
         state.phi = phi_fixed;
