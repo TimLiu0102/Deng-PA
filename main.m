@@ -16,15 +16,26 @@ params.K_max = params.N;
 params.K_serv = min(params.NRF, params.K_max);
 
 % 2) 几何参数
-params.Dx = 10;
-params.Dy = 10;
+% 服务/部署空间大小
+params.area_Dx = 20;
+params.area_Dy = 20;
+
+% 波导沿 x 方向的部署宽度
+params.waveguide_Dx = 20;
+
+% PA 沿波导 y 方向的可移动长度 / 波导长度
+params.waveguide_Dy = 20;
+
+% 为兼容旧函数，保留 Dx / Dy
+params.Dx = params.waveguide_Dx;
+params.Dy = params.waveguide_Dy;
 params.d = 3;
 params.Delta = 0.5;
 
 
 % 用户位置
-params.user_x_rng = [0, 20];
-params.user_y_rng = [0, 20];
+params.user_x_rng = [0, params.area_Dx];
+params.user_y_rng = [0, params.area_Dy];
 
 % 3) 信道参数
 params.lambda = 0.01;
