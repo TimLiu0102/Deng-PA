@@ -207,13 +207,28 @@ if isfield(scene,'user_pos') && isfield(scene,'xW') && isfield(state,'X')
     user_pos = scene.user_pos;
     N = size(state.X,1);
     M = size(state.X,2);
+    if isfield(params,'area_Dx')
+        plot_Dx = params.area_Dx;
+    else
+        plot_Dx = max(user_pos(1,:));
+    end
+    if isfield(params,'area_Dy')
+        plot_Dy = params.area_Dy;
+    else
+        plot_Dy = max(user_pos(2,:));
+    end
+    if isfield(params,'waveguide_Dy')
+        wg_Dy = params.waveguide_Dy;
+    else
+        wg_Dy = params.Dy;
+    end
 
     h_users = scatter(user_pos(1,:), user_pos(2,:), 25, 'filled');
 
     h_waveguide = gobjects(0);
     h_pa = gobjects(0);
     for n = 1:N
-        h_line = line([scene.xW(n), scene.xW(n)], [0, params.Dy]);
+        h_line = line([scene.xW(n), scene.xW(n)], [0, wg_Dy]);
         if isempty(h_waveguide), h_waveguide = h_line; end
 
         h_sc = scatter(scene.xW(n)*ones(1,M), state.X(n,:), 40);
@@ -230,10 +245,20 @@ if isfield(scene,'user_pos') && isfield(scene,'xW') && isfield(state,'X')
         x_pa = repmat(scene.xW(:), 1, M);
         x_pa = x_pa(:);
         y_pa = state.X(:);
-        u = cos(state.theta(:));
-        v = sin(state.theta(:));
-        quiver(x_pa, y_pa, u, v, 0.4, 'Color', [0.2 0.2 0.2], 'LineWidth', 0.8, 'MaxHeadSize', 1);
+        u = sin(state.theta(:)) .* cos(state.phi(:));
+        v = sin(state.theta(:)) .* sin(state.phi(:));
+        uv_norm = sqrt(u.^2 + v.^2);
+        idx_arrow = uv_norm > 1e-6;
+        if any(idx_arrow)
+            quiver(x_pa(idx_arrow), y_pa(idx_arrow), u(idx_arrow), v(idx_arrow), 0.4, ...
+                'Color', [0.2 0.2 0.2], 'LineWidth', 0.8, 'MaxHeadSize', 1);
+        end
     end
+
+    xlim([0, plot_Dx]);
+    ylim([0, plot_Dy]);
+    axis equal;
+    pbaspect([1 1 1]);
 
     xlabel('x 方向位置');
     ylabel('y 方向位置');
