@@ -201,7 +201,7 @@ end
 
 %% ======================== 图2：系统几何示意图 ========================
 if isfield(scene,'user_pos') && isfield(scene,'xW') && isfield(state,'X')
-    figure('Position',[100 100 800 800]);
+    figure;
     hold on;
 
     user_pos = scene.user_pos;
