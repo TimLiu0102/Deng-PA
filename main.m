@@ -105,14 +105,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'fixedX';   % 'AO' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser' | 'fixed_antenna_ws'
+scheme_mode = 'fixedX';   % 'AO' | 'sa_joint' | 'hg_multiuser' | 'fixed_antenna_ws' | 'fixedX' | 'w_only'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'fixedX';   % 'paper' | 'margin' | 'random' | 'uniform' | 'uniform_neutral' | 'uniform_fixed' | 'fixedX' | 'reffX'
+init_mode = 'fixedX';   % 'paper' | 'uniform_neutral' | 'uniform_fixed' | 'fixedX' | 'reffX' | 'margin' | 'random' | 'uniform'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
