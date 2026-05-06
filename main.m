@@ -16,15 +16,26 @@ params.K_max = params.N;
 params.K_serv = min(params.NRF, params.K_max);
 
 % 2) 几何参数
-params.Dx = 10;
-params.Dy = 10;
+% 服务/部署空间大小
+params.area_Dx = 20;
+params.area_Dy = 20;
+
+% 波导沿 x 方向的部署宽度
+params.waveguide_Dx = 20;
+
+% PA 沿波导 y 方向的可移动长度 / 波导长度
+params.waveguide_Dy = 20;
+
+% 为兼容旧函数，保留 Dx / Dy
+params.Dx = params.waveguide_Dx;
+params.Dy = params.waveguide_Dy;
 params.d = 3;
 params.Delta = 0.5;
 
 
 % 用户位置
-params.user_x_rng = [1, 20];
-params.user_y_rng = [0, 20];
+params.user_x_rng = [0, params.area_Dx];
+params.user_y_rng = [0, params.area_Dy];
 
 % 3) 信道参数
 params.lambda = 0.01;
@@ -105,14 +116,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'fixedX';   % 'ao_final_w' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser'
+scheme_mode = 'fixedX';   % 'AO' | 'fixedX' | 'w_only' | 'sa_joint' | 'hg_multiuser' | 'fixed_antenna_ws'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'fixedX';   % 'paper' | 'margin' | 'random' | 'uniform' | 'fixedX' | 'reffX'
+init_mode = 'fixedX';   % 'paper' | 'margin' | 'random' | 'uniform' | 'uniform_neutral' | 'uniform_fixed' | 'fixedX' | 'reffX'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
@@ -122,6 +133,10 @@ elseif strcmp(init_mode, 'random')
     state = Initialization_ra(params, scene, model);
 elseif strcmp(init_mode, 'uniform')
     state = Initialization_uniform(params, scene, model);
+elseif strcmp(init_mode, 'uniform_neutral')
+    state = Initialization_uniform_neutral(params, scene, model);
+elseif strcmp(init_mode, 'uniform_fixed')
+    state = Initialization_uniform_fixed(params, scene, model);
 elseif strcmp(init_mode, 'fixedX')
     state = Initialization_fixedX(params, scene, model);
 elseif strcmp(init_mode, 'reffX')
@@ -182,7 +197,7 @@ history.phi_cells = {};
 history.swap_flag = false;
 
 %% 第6部分：根据 scheme_mode 执行算法
-if strcmp(scheme_mode, 'ao_final_w')
+if strcmp(scheme_mode, 'AO')
     % 外层交替优化主循环：W -> angle -> X -> S
     for t = 1:params.T_max
         % 当前外层迭代编号，供 AO_S 周期触发判断
@@ -310,6 +325,74 @@ elseif strcmp(scheme_mode, 'w_only')
         history.phi_cells{t,1} = state.phi;
         history.swap_flag(end+1,1) = state.swap_flag;
 
+        history.DEBUG_X_cells{t,1} = [];
+
+        if abs(R_new - R_old) < params.eps_outer
+            break;
+        end
+
+        R_old = R_new;
+    end
+
+
+elseif strcmp(scheme_mode, 'fixed_antenna_ws')
+    history.X_update_mode = 'fixed_antenna_ws';
+
+    X_fixed = state.X;
+    theta_fixed = pi * ones(params.N, params.M);
+    phi_fixed = zeros(params.N, params.M);
+    state.X = X_fixed;
+    state.theta = theta_fixed;
+    state.phi = phi_fixed;
+
+    for t = 1:params.T_max
+        state.t = t;
+        state.swap_flag = false;
+        state.X = X_fixed;
+        state.theta = theta_fixed;
+        state.phi = phi_fixed;
+
+        state.W = AO_W(params, scene, model, state);
+        R_after_W = Signal_model('sum_rate', params, scene, state, []);
+        [R_eff_after_W, ~] = Effective_rate_model(params, scene, state, []);
+
+        R_after_angle = R_after_W;
+        R_after_X = R_after_W;
+        R_eff_after_angle = R_eff_after_W;
+        R_eff_after_X = R_eff_after_W;
+
+        [state.S, state.swap_flag] = AO_S_fixed(params, scene, model, state);
+
+        state.X = X_fixed;
+        state.theta = theta_fixed;
+        state.phi = phi_fixed;
+
+        R_after_S = Signal_model('sum_rate', params, scene, state, []);
+        [R_eff_after_S, detail_S] = Effective_rate_model(params, scene, state, []);
+
+        history.R_after_W(end+1,1) = R_after_W;
+        history.R_after_angle(end+1,1) = R_after_angle;
+        history.R_after_X(end+1,1) = R_after_X;
+        history.R_after_S(end+1,1) = R_after_S;
+        history.R_eff_after_W(end+1,1) = R_eff_after_W;
+        history.R_eff_after_angle(end+1,1) = R_eff_after_angle;
+        history.R_eff_after_X(end+1,1) = R_eff_after_X;
+        history.R_eff_after_S(end+1,1) = R_eff_after_S;
+
+        R_new = R_eff_after_S;
+        history.R_eff(end+1,1) = R_new;
+        history.R_sum(end+1,1) = R_after_S;
+        history.T_X(end+1,1) = detail_S.T_X;
+        history.T_theta(end+1,1) = detail_S.T_theta;
+        history.T_phi(end+1,1) = detail_S.T_phi;
+        history.T_rec(end+1,1) = detail_S.T_rec;
+        history.time_factor(end+1,1) = detail_S.time_factor;
+
+        history.S_cells{t,1} = state.S;
+        history.X_cells{t,1} = state.X;
+        history.theta_cells{t,1} = state.theta;
+        history.phi_cells{t,1} = state.phi;
+        history.swap_flag(end+1,1) = state.swap_flag;
         history.DEBUG_X_cells{t,1} = [];
 
         if abs(R_new - R_old) < params.eps_outer
