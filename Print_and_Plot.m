@@ -255,10 +255,30 @@ if isfield(scene,'user_pos') && isfield(scene,'xW') && isfield(state,'X')
         end
     end
 
-    xlim([0, plot_Dx]);
-    ylim([0, plot_Dy]);
-    axis equal;
-    pbaspect([1 1 1]);
+    drawnow;
+    ax = gca;
+    fig_pos = get(gcf, 'Position');
+    ax_pos = get(ax, 'Position');
+
+    ax_w = fig_pos(3) * ax_pos(3);
+    ax_h = fig_pos(4) * ax_pos(4);
+    box_ratio = ax_w / ax_h;
+
+    data_ratio = plot_Dx / plot_Dy;
+
+    x_center = plot_Dx / 2;
+    y_center = plot_Dy / 2;
+
+    if box_ratio >= data_ratio
+        y_span = plot_Dy;
+        x_span = y_span * box_ratio;
+    else
+        x_span = plot_Dx;
+        y_span = x_span / box_ratio;
+    end
+
+    xlim([x_center - x_span/2, x_center + x_span/2]);
+    ylim([y_center - y_span/2, y_center + y_span/2]);
 
     xlabel('x 方向位置');
     ylabel('y 方向位置');
