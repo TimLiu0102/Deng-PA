@@ -2,6 +2,7 @@ function compare_result = Plot_Compare(base_params)
 % Plot_Compare：多方案对比绘图
 
 plot_mode = 'debug';   % 'debug' 或 'full'
+% debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
 do_snr         = false;
 do_K           = false;
@@ -268,22 +269,25 @@ end
 end
 
 function [state, history] = run_fixed_antenna_ws_reW_case(params, scene, model, state)
-if exist('AO_S_fixed_reW.m','file') == 2
-    X_fixed = state.X; theta_fixed = pi*ones(params.N,params.M); phi_fixed = zeros(params.N,params.M);
-    state.theta=theta_fixed; state.phi=phi_fixed;
-    [Reff0, d0] = Effective_rate_model(params, scene, state, []);
-    history = init_history_full(params, scene, state, Reff0, d0); history.X_update_mode='fixed_antenna_ws_reW';
-    for t=1:params.T_max
-        state.t=t; state.X=X_fixed; state.theta=theta_fixed; state.phi=phi_fixed; state.W=AO_W(params, scene, model, state);
-        [state.S,state.W,state.swap_flag]=AO_S_fixed_reW(params, scene, model, state);
-        state.X=X_fixed; state.theta=theta_fixed; state.phi=phi_fixed;
-        R=Signal_model('sum_rate', params, scene, state, []); [Re,dt]=Effective_rate_model(params, scene, state, []);
-        history.R_sum(end+1,1)=R; history.R_eff(end+1,1)=Re; history.T_X(end+1,1)=dt.T_X; history.T_theta(end+1,1)=dt.T_theta; history.T_phi(end+1,1)=dt.T_phi; history.T_rec(end+1,1)=dt.T_rec; history.time_factor(end+1,1)=dt.time_factor;
-        if abs(history.R_eff(end)-history.R_eff(end-1)) < params.eps_outer, break; end
-    end
-else
-    % 若 AO_S_fixed_reW 不存在，则退化为 fixed_antenna_ws
-    [state, history] = run_fixed_antenna_ws_case(params, scene, model, state);
+if exist('AO_S_fixed_reW.m','file') ~= 2
+    error('AO_S_fixed_reW.m not found. Cannot run Fixed W+S reW scheme.');
+end
+X_fixed = state.X; theta_fixed = pi*ones(params.N,params.M); phi_fixed = zeros(params.N,params.M);
+state.theta=theta_fixed; state.phi=phi_fixed;
+[Reff0, d0] = Effective_rate_model(params, scene, state, []);
+history = init_history_full(params, scene, state, Reff0, d0); history.X_update_mode='fixed_antenna_ws_reW';
+for t=1:params.T_max
+    state.t=t; state.X=X_fixed; state.theta=theta_fixed; state.phi=phi_fixed; state.W=AO_W(params, scene, model, state);
+    [state.S,state.W,state.swap_flag]=AO_S_fixed_reW(params, scene, model, state);
+    state.X=X_fixed; state.theta=theta_fixed; state.phi=phi_fixed;
+    R=Signal_model('sum_rate', params, scene, state, []); [Re,dt]=Effective_rate_model(params, scene, state, []);
+    history.R_sum(end+1,1)=R; history.R_eff(end+1,1)=Re; history.T_X(end+1,1)=dt.T_X; history.T_theta(end+1,1)=dt.T_theta; history.T_phi(end+1,1)=dt.T_phi; history.T_rec(end+1,1)=dt.T_rec; history.time_factor(end+1,1)=dt.time_factor;
+    history.S_cells{t,1} = state.S;
+    history.X_cells{t,1} = state.X;
+    history.theta_cells{t,1} = state.theta;
+    history.phi_cells{t,1} = state.phi;
+    history.swap_flag(end+1,1) = state.swap_flag;
+    if abs(history.R_eff(end)-history.R_eff(end-1)) < params.eps_outer, break; end
 end
 end
 
@@ -339,7 +343,10 @@ function draw_final_bar_ab(final_bar_ab, schemes)
 for i=1:2
     figure('Name',sprintf('Fig_FinalBar_ab_%d',i),'Position',[100 100 820 520]);
     Y = [final_bar_ab.mean_R_sum_ab(i,:).', final_bar_ab.mean_R_eff_ab(i,:).'];
-    bar(Y); hold on;
+    hb = bar(Y); hold on;
+    x1 = hb(1).XEndPoints; x2 = hb(2).XEndPoints;
+    errorbar(x1, Y(:,1), final_bar_ab.std_R_sum_ab(i,:).', 'k.', 'LineWidth', 1.0);
+    errorbar(x2, Y(:,2), final_bar_ab.std_R_eff_ab(i,:).', 'k.', 'LineWidth', 1.0);
     xticks(1:numel(schemes)); xticklabels({schemes.name}); xtickangle(30);
     legend({'R_{sum}','R_{eff}'},'Location','northwest');
     title(sprintf('Final performance, a=%.2f, b=%.2f', final_bar_ab.ab_cases(i,1), final_bar_ab.ab_cases(i,2)));
@@ -360,7 +367,7 @@ for i=1:2
         dx = X - x_pa; dy = Y - y_pa_list(k); r = sqrt(dx.^2 + dy.^2 + base_params.d^2);
         ux = dx ./ (r + eps); uy = dy ./ (r + eps);
         bx = sin(theta_list(k))*cos(phi); by = sin(theta_list(k))*sin(phi);
-        cosang = ux.*bx + uy.*by; sigma = max(0.05, b/a);
+        cosang = ux.*bx + uy.*by; sigma = 0.35 / (a + b + eps); sigma = min(max(sigma, 0.08), 1.0);
         beam = exp(-((1-cosang).^2)/(2*sigma^2));
         path = 1./(r.^2 + 1e-3);
         H2 = H2 + (a^2) * beam .* path;
