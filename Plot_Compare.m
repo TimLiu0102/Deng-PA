@@ -3,7 +3,6 @@ function compare_result = Plot_Compare(base_params)
 
 plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
-% 几何图只保留默认参数下 Proposed AO 的最终几何图，由 do_default_geometry 控制。
 
 do_snr         = false;
 do_K           = false;
@@ -476,6 +475,54 @@ for ia = 1:size(ab_cases,1)
     H2_ab.H2_z0{ia} = H2_z0;
 end
 end
+if isfield(params_h2,'area_Dy')
+    area_Dy = params_h2.area_Dy;
+else
+    area_Dy = params_h2.Dy;
+end
+
+x_grid = linspace(0, area_Dx, 81);
+y_grid = linspace(0, area_Dy, 81);
+z_grid = linspace(0, params_h2.d, 31);
+
+state = struct();
+state.X = wg_Dy / 2;
+state.theta = pi;
+state.phi = 0;
+
+H2_ab = struct();
+H2_ab.ab_cases = ab_cases;
+H2_ab.x_grid = x_grid;
+H2_ab.y_grid = y_grid;
+H2_ab.z_grid = z_grid;
+H2_ab.state = state;
+
+for ia = 1:size(ab_cases,1)
+    params_h2.a = ab_cases(ia,1);
+    params_h2.b = ab_cases(ia,2);
+
+    scene = Channel_model('build_scene', params_h2, [], [], []);
+    scene.xW = wg_Dx / 2;
+    scene.feed_pos = [scene.xW; 0; params_h2.d];
+    scene.N = 1;
+    scene.M = 1;
+
+    [Yg, Xg] = meshgrid(y_grid, x_grid);
+    H3 = zeros(numel(x_grid), numel(y_grid), numel(z_grid));
+
+    for iz = 1:numel(z_grid)
+        Zg = z_grid(iz) * ones(size(Xg));
+        scene.user_pos = [Xg(:).'; Yg(:).'; Zg(:).'];
+        scene.K = numel(Xg);
+
+        extra = struct();
+        extra.use_all = true;
+        ch_out = Channel_model('all_users', params_h2, scene, state, extra);
+        H = ch_out.H;
+
+        pow_map = abs(H).^2;
+        H3(:,:,iz) = reshape(pow_map, size(Xg));
+    end
 
 function conv_results = run_convergence_cases(base_params, schemes)
 ns=numel(schemes); conv_results=cell(ns,1); scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'conv',base_params.seed+50001));
