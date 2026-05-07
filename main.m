@@ -111,12 +111,26 @@ params.SA_step_phi = 0.08;
 params.SA_step_W = 0.02;
 params.SA_beta_W = 0.3;
 
+% 9.6) PSO 联合启发式搜索参数
+params.PSO_num_particles = 20;
+params.PSO_max_iter = 250;
+params.PSO_w = 0.7;
+params.PSO_c1 = 1.5;
+params.PSO_c2 = 1.5;
+params.PSO_vmax_X = 1.0;
+params.PSO_vmax_theta = 0.15;
+params.PSO_vmax_phi = 0.15;
+params.PSO_prob_S = 0.4;
+params.PSO_beta_W = 0.3;
+params.PSO_step_W = 0.02;
+params.PSO_init_X_jitter = 2.0;
+
 % 10) 随机种子
 params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'hg_multiuser';   % 'AO' | 'sa_joint' | 'hg_multiuser' | 'fixed_antenna_ws' | 'fixedX' | 'w_only'
+scheme_mode = 'hg_multiuser';   % 'AO' | 'fixedX' | 'w_only' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
@@ -445,6 +459,89 @@ elseif strcmp(scheme_mode, 'sa_joint')
     if ~isfield(history, 'R_after_final_W')
         history.R_after_final_W = [];
     end
+    R_sum_end = Signal_model('sum_rate', params, scene, state, []);
+    [R_eff_end, detail_end] = Effective_rate_model(params, scene, state, []);
+
+    if ~isfield(history,'R_sum') || isempty(history.R_sum)
+        history.R_sum = R_sum_end;
+    else
+        history.R_sum(end,1) = R_sum_end;
+    end
+    if ~isfield(history,'R_eff') || isempty(history.R_eff)
+        history.R_eff = R_eff_end;
+    else
+        history.R_eff(end,1) = R_eff_end;
+    end
+    if ~isfield(history,'T_X') || isempty(history.T_X)
+        history.T_X = detail_end.T_X;
+    else
+        history.T_X(end,1) = detail_end.T_X;
+    end
+    if ~isfield(history,'T_theta') || isempty(history.T_theta)
+        history.T_theta = detail_end.T_theta;
+    else
+        history.T_theta(end,1) = detail_end.T_theta;
+    end
+    if ~isfield(history,'T_phi') || isempty(history.T_phi)
+        history.T_phi = detail_end.T_phi;
+    else
+        history.T_phi(end,1) = detail_end.T_phi;
+    end
+    if ~isfield(history,'T_rec') || isempty(history.T_rec)
+        history.T_rec = detail_end.T_rec;
+    else
+        history.T_rec(end,1) = detail_end.T_rec;
+    end
+    if ~isfield(history,'time_factor') || isempty(history.time_factor)
+        history.time_factor = detail_end.time_factor;
+    else
+        history.time_factor(end,1) = detail_end.time_factor;
+    end
+
+
+elseif strcmp(scheme_mode, 'pso_joint')
+    [state_best, history_pso] = PSO_joint(params, scene, model, state);
+
+    state = state_best;
+    history = history_pso;
+
+    if ~isfield(history, 'DEBUG_X_cells')
+        history.DEBUG_X_cells = {};
+    end
+    if ~isfield(history, 'X_update_mode')
+        history.X_update_mode = 'none';
+    end
+    if ~isfield(history, 'R_after_W')
+        history.R_after_W = [];
+    end
+    if ~isfield(history, 'R_after_angle')
+        history.R_after_angle = [];
+    end
+    if ~isfield(history, 'R_after_X')
+        history.R_after_X = [];
+    end
+    if ~isfield(history, 'R_after_S')
+        history.R_after_S = [];
+    end
+    if ~isfield(history, 'R_eff_after_W')
+        history.R_eff_after_W = [];
+    end
+    if ~isfield(history, 'R_eff_after_angle')
+        history.R_eff_after_angle = [];
+    end
+    if ~isfield(history, 'R_eff_after_X')
+        history.R_eff_after_X = [];
+    end
+    if ~isfield(history, 'R_eff_after_S')
+        history.R_eff_after_S = [];
+    end
+    if ~isfield(history, 'R_before_final_W')
+        history.R_before_final_W = [];
+    end
+    if ~isfield(history, 'R_after_final_W')
+        history.R_after_final_W = [];
+    end
+
     R_sum_end = Signal_model('sum_rate', params, scene, state, []);
     [R_eff_end, detail_end] = Effective_rate_model(params, scene, state, []);
 
