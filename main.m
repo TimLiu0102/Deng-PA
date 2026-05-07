@@ -42,8 +42,8 @@ params.lambda = 0.01;
 params.n_eff = 1.6;
 params.alphaW = 0.01;
 params.alphaL = 0.96;
-params.a = 0.5;
-params.b = 0.3;
+params.a = 0.3;
+params.b = 0.18;
 params.v = 1.1;
 params.n_refr = 1.5;
 % 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
@@ -130,7 +130,7 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'hg_multiuser';   % 'AO' | 'fixedX' | 'w_only' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws'
+scheme_mode = 'pso_joint';   % 'AO' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws' | 'fixedX' | 'w_only'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
