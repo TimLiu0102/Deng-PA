@@ -420,7 +420,7 @@ for ia = 1:size(ab_cases,1)
 
     subplot(1,2,1);
     [Y3, X3, Z3] = meshgrid(y_grid, x_grid, z_grid);
-    H3_plot = H3 / max(H3(:) + eps);
+    H3_plot = H3 / (max(H3(:)) + eps);
     iso_outer = 0.05;
     iso_inner = 0.20;
 
