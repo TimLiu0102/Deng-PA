@@ -341,28 +341,115 @@ end
 end
 
 function H2_ab = draw_H2_ab_cases(base_params)
-ab_cases = [0.5 0.3; 0.3 0.18];
-if isfield(base_params,'waveguide_Dx'), wg_Dx = base_params.waveguide_Dx; else, wg_Dx = base_params.Dx; end
-if isfield(base_params,'waveguide_Dy'), wg_Dy = base_params.waveguide_Dy; else, wg_Dy = base_params.Dy; end
-x_grid = linspace(0, base_params.area_Dx, 201); y_grid = linspace(0, base_params.area_Dy, 201); [Y,X] = meshgrid(y_grid,x_grid);
-theta_list = [pi, 5*pi/6, 2*pi/3]; phi = pi/2; y_pa_list = [0.25, 0.5, 0.75] * wg_Dy; x_pa = wg_Dx/2;
+ab_cases = [0.5 0.3;
+            0.3 0.18];
+
+params_h2 = base_params;
+params_h2.N = 1;
+params_h2.M = 1;
+params_h2.K = 1;
+params_h2.NRF = 1;
+params_h2.K_max = 1;
+params_h2.K_serv = 1;
+
+if isfield(params_h2,'waveguide_Dx')
+    wg_Dx = params_h2.waveguide_Dx;
+else
+    wg_Dx = params_h2.Dx;
+end
+if isfield(params_h2,'waveguide_Dy')
+    wg_Dy = params_h2.waveguide_Dy;
+else
+    wg_Dy = params_h2.Dy;
+end
+if isfield(params_h2,'area_Dx')
+    area_Dx = params_h2.area_Dx;
+else
+    area_Dx = params_h2.Dx;
+end
+if isfield(params_h2,'area_Dy')
+    area_Dy = params_h2.area_Dy;
+else
+    area_Dy = params_h2.Dy;
+end
+
+x_grid = linspace(0, area_Dx, 81);
+y_grid = linspace(0, area_Dy, 81);
+z_grid = linspace(0, params_h2.d, 31);
+
+state = struct();
+state.X = wg_Dy / 2;
+state.theta = pi;
+state.phi = 0;
+
 H2_ab = struct();
-for i=1:2
-    a = ab_cases(i,1); b = ab_cases(i,2); H2 = zeros(size(X));
-    for k=1:3
-        dx = X - x_pa; dy = Y - y_pa_list(k); r = sqrt(dx.^2 + dy.^2 + base_params.d^2);
-        ux = dx ./ (r + eps); uy = dy ./ (r + eps);
-        bx = sin(theta_list(k))*cos(phi); by = sin(theta_list(k))*sin(phi);
-        cosang = ux.*bx + uy.*by; sigma = 0.35 / (a + b + eps); sigma = min(max(sigma, 0.08), 1.0);
-        beam = exp(-((1-cosang).^2)/(2*sigma^2));
-        path = 1./(r.^2 + 1e-3);
-        H2 = H2 + (a^2) * beam .* path;
+H2_ab.ab_cases = ab_cases;
+H2_ab.x_grid = x_grid;
+H2_ab.y_grid = y_grid;
+H2_ab.z_grid = z_grid;
+H2_ab.state = state;
+
+for ia = 1:size(ab_cases,1)
+    params_h2.a = ab_cases(ia,1);
+    params_h2.b = ab_cases(ia,2);
+
+    scene = Channel_model('build_scene', params_h2, [], [], []);
+    scene.xW = wg_Dx / 2;
+    scene.feed_pos = [scene.xW; 0; params_h2.d];
+    scene.N = 1;
+    scene.M = 1;
+
+    [Yg, Xg] = meshgrid(y_grid, x_grid);
+    H3 = zeros(numel(x_grid), numel(y_grid), numel(z_grid));
+
+    for iz = 1:numel(z_grid)
+        Zg = z_grid(iz) * ones(size(Xg));
+        scene.user_pos = [Xg(:).'; Yg(:).'; Zg(:).'];
+        scene.K = numel(Xg);
+
+        extra = struct();
+        extra.use_all = true;
+        ch_out = Channel_model('all_users', params_h2, scene, state, extra);
+        H = ch_out.H;
+
+        pow_map = abs(H).^2;
+        H3(:,:,iz) = reshape(pow_map, size(Xg));
     end
-    H2log = log10(H2 + 1e-12);
-    figure('Name',sprintf('Fig_H2_ab_%d',i),'Position',[100 100 760 520]);
-    imagesc(y_grid, x_grid, H2log); axis xy; colorbar; colormap turbo;
-    xlabel('y (m)'); ylabel('x (m)'); title(sprintf('log_{10}|H|^2 (visualization), a=%.2f, b=%.2f',a,b));
-    H2_ab(i).a = a; H2_ab(i).b = b; H2_ab(i).x_grid = x_grid; H2_ab(i).y_grid = y_grid; H2_ab(i).H2log = H2log;
+
+    figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), 'Position', [100 100 1100 480]);
+
+    subplot(1,2,1);
+    [Y3, X3, Z3] = meshgrid(y_grid, x_grid, z_grid);
+    zslice = [0, params_h2.d/2];
+    hslice = slice(Y3, X3, Z3, log10(H3 + eps), [], [], zslice);
+    set(hslice, 'EdgeColor', 'none');
+    hold on;
+    plot3(state.X, scene.xW, params_h2.d, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 6);
+    hold off;
+    xlabel('y (m)');
+    ylabel('x (m)');
+    zlabel('z (m)');
+    title(sprintf('3D beam shape, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+    colorbar;
+    view(45,25);
+    grid on;
+
+    subplot(1,2,2);
+    H2_z0 = H3(:,:,1);
+    imagesc(y_grid, x_grid, H2_z0);
+    set(gca, 'YDir', 'normal');
+    set(gca, 'ColorScale', 'log');
+    hold on;
+    plot(state.X, scene.xW, 'w.', 'MarkerSize', 18);
+    hold off;
+    colorbar;
+    xlabel('y (m)');
+    ylabel('x (m)');
+    title(sprintf('z = 0 plane |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+
+    H2_ab.scene_xW = scene.xW;
+    H2_ab.H3{ia} = H3;
+    H2_ab.H2_z0{ia} = H2_z0;
 end
 end
 
