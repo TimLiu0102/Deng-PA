@@ -42,8 +42,8 @@ params.lambda = 0.01;
 params.n_eff = 1.6;
 params.alphaW = 0.01;
 params.alphaL = 0.96;
-params.a = 0.3;
-params.b = 0.18;
+params.a = 0.5;
+params.b = 0.3;
 params.v = 1.1;
 params.n_refr = 1.5;
 % 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
@@ -98,7 +98,7 @@ params.eps_S = 1e-5;
 params.max_swaps = 1;
 
 % 9) 外层停止参数
-params.T_max = 5;
+params.T_max = 10;
 params.eps_outer = 1e-4;
 
 % 9.5) SA 联合优化参数（纯启发式联合搜索）
@@ -361,7 +361,8 @@ elseif strcmp(scheme_mode, 'fixed_antenna_ws')
         R_eff_after_angle = R_eff_after_W;
         R_eff_after_X = R_eff_after_W;
 
-        [state.S, state.swap_flag] = AO_S_fixed(params, scene, model, state);
+        % [state.S, state.swap_flag] = AO_S_fixed(params, scene, model, state);
+        [state.S, state.W, state.swap_flag] = AO_S_fixed_reW(params, scene, model, state);
 
         state.X = X_fixed;
         state.theta = theta_fixed;
