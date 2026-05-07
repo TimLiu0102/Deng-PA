@@ -4,13 +4,13 @@ function compare_result = Plot_Compare(base_params)
 plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
-do_snr         = false;
-do_K           = false;
+do_snr         = true;
+do_K           = true;
 do_N           = true;
-do_M           = false;
+do_M           = true;
 do_Dy          = true;
 do_convergence = false;
-do_cdf         = false;
+do_cdf         = true;
 do_final_bar_ab = true;
 do_H2_ab = true;
 do_default_geometry = true;
@@ -23,7 +23,7 @@ snr_dB_vec = [-10 -5 0 5 10 15 20 25 30];
 K_vec = [8 16 24 32 48 64];
 N_vec = [2 4 6 8 10 12];
 M_vec = [2 4 6 8];
-Dy_vec = [4 6 8 10 12 15 20];
+Dy_vec = [4 8 12 16 20];
 
 if strcmp(plot_mode, 'debug')
     MC = 3;
