@@ -420,23 +420,46 @@ for ia = 1:size(ab_cases,1)
 
     subplot(1,2,1);
     [Y3, X3, Z3] = meshgrid(y_grid, x_grid, z_grid);
-    zslice = [0, params_h2.d/2];
-    hslice = slice(Y3, X3, Z3, log10(H3 + eps), [], [], zslice);
-    set(hslice, 'EdgeColor', 'none');
-    hold on;
-    plot3(state.X, scene.xW, params_h2.d, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 6);
-    hold off;
+    H3_plot = H3 / max(H3(:) + eps);
+    iso_outer = 0.05;
+    iso_inner = 0.20;
+
+    fv1 = isosurface(Y3, X3, Z3, H3_plot, iso_outer);
+    if ~isempty(fv1.vertices)
+        p1 = patch(fv1);
+        isonormals(Y3, X3, Z3, H3_plot, p1);
+        set(p1, 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'none', 'FaceAlpha', 0.20);
+        hold on;
+    else
+        hold on;
+    end
+
+    fv2 = isosurface(Y3, X3, Z3, H3_plot, iso_inner);
+    if ~isempty(fv2.vertices)
+        p2 = patch(fv2);
+        isonormals(Y3, X3, Z3, H3_plot, p2);
+        set(p2, 'FaceColor', [0.1 0.3 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.55);
+    end
+
+    plot3(state.X, scene.xW, params_h2.d, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
     xlabel('y (m)');
     ylabel('x (m)');
     zlabel('z (m)');
     title(sprintf('3D beam shape, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
-    colorbar;
-    view(45,25);
     grid on;
+    axis tight;
+    daspect([1 1 0.6]);
+    view(45,25);
+    camlight headlight;
+    camlight right;
+    lighting gouraud;
+    box on;
+    hold off;
 
     subplot(1,2,2);
     H2_z0 = H3(:,:,1);
-    imagesc(y_grid, x_grid, H2_z0);
+    H2_z0_plot = max(H2_z0, 1e-30);
+    imagesc(y_grid, x_grid, H2_z0_plot);
     set(gca, 'YDir', 'normal');
     set(gca, 'ColorScale', 'log');
     hold on;
@@ -452,6 +475,54 @@ for ia = 1:size(ab_cases,1)
     H2_ab.H2_z0{ia} = H2_z0;
 end
 end
+if isfield(params_h2,'area_Dy')
+    area_Dy = params_h2.area_Dy;
+else
+    area_Dy = params_h2.Dy;
+end
+
+x_grid = linspace(0, area_Dx, 81);
+y_grid = linspace(0, area_Dy, 81);
+z_grid = linspace(0, params_h2.d, 31);
+
+state = struct();
+state.X = wg_Dy / 2;
+state.theta = pi;
+state.phi = 0;
+
+H2_ab = struct();
+H2_ab.ab_cases = ab_cases;
+H2_ab.x_grid = x_grid;
+H2_ab.y_grid = y_grid;
+H2_ab.z_grid = z_grid;
+H2_ab.state = state;
+
+for ia = 1:size(ab_cases,1)
+    params_h2.a = ab_cases(ia,1);
+    params_h2.b = ab_cases(ia,2);
+
+    scene = Channel_model('build_scene', params_h2, [], [], []);
+    scene.xW = wg_Dx / 2;
+    scene.feed_pos = [scene.xW; 0; params_h2.d];
+    scene.N = 1;
+    scene.M = 1;
+
+    [Yg, Xg] = meshgrid(y_grid, x_grid);
+    H3 = zeros(numel(x_grid), numel(y_grid), numel(z_grid));
+
+    for iz = 1:numel(z_grid)
+        Zg = z_grid(iz) * ones(size(Xg));
+        scene.user_pos = [Xg(:).'; Yg(:).'; Zg(:).'];
+        scene.K = numel(Xg);
+
+        extra = struct();
+        extra.use_all = true;
+        ch_out = Channel_model('all_users', params_h2, scene, state, extra);
+        H = ch_out.H;
+
+        pow_map = abs(H).^2;
+        H3(:,:,iz) = reshape(pow_map, size(Xg));
+    end
 
 function conv_results = run_convergence_cases(base_params, schemes)
 ns=numel(schemes); conv_results=cell(ns,1); scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'conv',base_params.seed+50001));
