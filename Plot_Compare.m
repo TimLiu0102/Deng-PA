@@ -1,5 +1,10 @@
-function compare_result = Plot_Compare(base_params)
+function compare_result = Plot_Compare(base_params, base_scene)
 % Plot_Compare：多方案对比绘图
+
+if nargin < 2 || isempty(base_scene)
+    rng(base_params.seed);
+    base_scene = Channel_model('build_scene', base_params, [], [], []);
+end
 
 plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
@@ -14,16 +19,43 @@ do_cdf         = true;
 do_final_bar_ab = true;
 do_H2_ab = true;
 do_default_geometry = true;
+do_default_check = true;
 
 fprintf('\n================ 多方案对比绘图 ================\n');
 
 schemes = build_scheme_list();
 
-snr_dB_vec = [-10 -5 0 5 10 15 20 25 30];
-K_vec = [8 16 24 32 48 64];
-N_vec = [2 4 6 8 10 12];
-M_vec = [2 4 6 8];
-Dy_vec = [4 8 12 16 20];
+if isfield(base_params, 'SNR_dB')
+    snr_ref_dB = base_params.SNR_dB;
+else
+    snr_ref_dB = 20;   % 当前绘图口径：base_params.sigma2 对应参考 SNR=20 dB
+end
+
+snr_dB_base_vec = [-10 -5 0 5 10 15 20 25 30];
+K_base_vec      = [8 16 24 32 48 64];
+N_base_vec      = [2 4 6 8 10 12];
+M_base_vec      = [2 4 6 8];
+Dy_base_vec     = [4 8 12 16 20];
+add_default_point = true;
+
+if isfield(base_params, 'waveguide_Dy')
+    Dy_default = base_params.waveguide_Dy;
+else
+    Dy_default = base_params.Dy;
+end
+if add_default_point
+    snr_dB_vec = unique(sort([snr_dB_base_vec snr_ref_dB]));
+    K_vec      = unique(sort([K_base_vec base_params.K]));
+    N_vec      = unique(sort([N_base_vec base_params.N]));
+    M_vec      = unique(sort([M_base_vec base_params.M]));
+    Dy_vec     = unique(sort([Dy_base_vec Dy_default]));
+else
+    snr_dB_vec = snr_dB_base_vec;
+    K_vec      = K_base_vec;
+    N_vec      = N_base_vec;
+    M_vec      = M_base_vec;
+    Dy_vec     = Dy_base_vec;
+end
 
 if strcmp(plot_mode, 'debug')
     MC = 3;
@@ -33,49 +65,85 @@ end
 
 K_vec = max(K_vec, base_params.K_serv);
 
+% 注意：
+% default_check 使用 base_scene，用于和 main 单次默认结果做 sanity check。
+% sweep 图使用 MC user_pos_pools。它们不要求等于 main 单次结果，
+% 但同一个 MC 下，不同 sweep 图中的默认参数点应使用相同用户分布和相同 seed，
+% 因此这些默认点应彼此一致。
+max_K_for_pool = max([K_vec(:); base_params.K]);
+user_pos_pools = cell(MC,1);
+for idx_mc = 1:MC
+    params_pool = base_params;
+    params_pool.K = max_K_for_pool;
+    scene_seed = base_params.seed + 10000 + idx_mc;
+    rng(scene_seed);
+    scene_pool = Channel_model('build_scene', params_pool, [], [], []);
+    user_pos_pools{idx_mc} = scene_pool.user_pos;
+end
+
 compare_result = struct();
 compare_result.plot_mode = plot_mode;
 compare_result.MC = MC;
 compare_result.schemes = schemes;
 
+if do_default_check
+    fprintf('\n================ Default sanity check ================\n');
+    for idx_scheme = 1:numel(schemes)
+        init_seed_case = base_params.seed;
+        alg_seed_case  = base_params.seed + 100*idx_scheme;
+
+        out_default = run_one_case(base_params, ...
+            schemes(idx_scheme).init_mode, ...
+            schemes(idx_scheme).alg_mode, ...
+            init_seed_case, alg_seed_case, base_scene);
+
+        fprintf('%-18s: Rsum = %.6f, Reff = %.6f, Trec = %.6f, time_factor = %.6f\n', ...
+            schemes(idx_scheme).name, ...
+            out_default.final_R_sum, ...
+            out_default.final_R_eff, ...
+            out_default.final_detail.T_rec, ...
+            out_default.final_detail.time_factor);
+
+        compare_result.default_check(idx_scheme).name = schemes(idx_scheme).name;
+        compare_result.default_check(idx_scheme).R_sum = out_default.final_R_sum;
+        compare_result.default_check(idx_scheme).R_eff = out_default.final_R_eff;
+        compare_result.default_check(idx_scheme).T_rec = out_default.final_detail.T_rec;
+        compare_result.default_check(idx_scheme).time_factor = out_default.final_detail.time_factor;
+    end
+end
+
 if do_snr
-    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, snr_dB_vec, 'snr', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, snr_dB_vec, 'snr', MC, user_pos_pools);
     figure('Name', 'Fig1_SNR', 'Position', [100 100 760 520]);
     draw_mean_error_curve(snr_dB_vec, mean_R, std_R, schemes, 'SNR (dB)', 'Effective Spectral Efficiency vs. SNR');
     compare_result.snr = pack_sweep_result(snr_dB_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_K
-    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, K_vec, 'K', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, K_vec, 'K', MC, user_pos_pools);
     figure('Name', 'Fig2_K', 'Position', [100 100 760 520]);
     draw_mean_error_curve(K_vec, mean_R, std_R, schemes, 'Number of users K', 'Effective Spectral Efficiency vs. Number of Users');
     compare_result.K = pack_sweep_result(K_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_N
-    K_fixed_N = 32;
-    K_serv_fixed_N = base_params.K_serv;
     params_N = base_params;
-    params_N.K = K_fixed_N;
-    params_N.NRF = K_serv_fixed_N;
-    params_N.K_max = K_serv_fixed_N;
-    params_N.K_serv = min(params_N.NRF, params_N.K_max);
 
-    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(params_N, schemes, N_vec, 'N', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(params_N, schemes, N_vec, 'N', MC, user_pos_pools);
     figure('Name', 'Fig3_N', 'Position', [100 100 760 520]);
     draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Effective Spectral Efficiency vs. Number of Waveguides');
     compare_result.N = pack_sweep_result(N_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_M
-    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, M_vec, 'M', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, M_vec, 'M', MC, user_pos_pools);
     figure('Name', 'Fig4_M', 'Position', [100 100 760 520]);
     draw_mean_error_curve(M_vec, mean_R, std_R, schemes, 'Number of PAs per waveguide M', 'Effective Spectral Efficiency vs. Number of PAs');
     compare_result.M = pack_sweep_result(M_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_Dy
-    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, Dy_vec, 'Dy', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, Dy_vec, 'Dy', MC, user_pos_pools);
     figure('Name', 'Fig5_Dy', 'Position', [100 100 760 520]);
     draw_mean_error_curve(Dy_vec, mean_R, std_R, schemes, 'Waveguide length / PA movable range D_y (m)', 'Effective Spectral Efficiency vs. Waveguide Length');
     compare_result.Dy = pack_sweep_result(Dy_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
@@ -97,10 +165,9 @@ end
 
 if do_default_geometry
     idx_geo = 1;
-    scene_seed = base_params.seed + 10000*17 + 1;
-    user_pos_pool = build_fixed_user_pool(base_params, 1, 'geometry_default', scene_seed);
-    scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
-    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, base_params.seed+1, base_params.seed+2, scene_case);
+    scene_case = base_scene;
+    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, ...
+        base_params.seed, base_params.seed + 100*idx_geo, scene_case);
     figure('Name', 'Fig_Default_Geometry', 'Position', [100 100 760 520]);
     draw_geometry_case(geo_result);
     compare_result.geometry = geo_result;
@@ -134,21 +201,20 @@ schemes(5).name = 'SA joint'; schemes(5).init_mode = 'uniform_neutral'; schemes(
 % schemes(6).name = 'PSO joint'; schemes(6).init_mode = 'uniform_neutral'; schemes(6).alg_mode = 'pso_joint';
 end
 
-function [mean_R, std_R, R_all_eff, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, x_vec, sweep_type, MC)
+function [mean_R, std_R, R_all_eff, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, x_vec, sweep_type, MC, user_pos_pools)
 ns = numel(schemes); nx = numel(x_vec);
 R_all_eff = zeros(nx, ns, MC); R_all_sum = zeros(nx, ns, MC);
-sweep_id = get_sweep_id(sweep_type);
 for idx_mc = 1:MC
-    scene_seed = base_params.seed + 10000*sweep_id + idx_mc;
-    user_pos_pool = build_fixed_user_pool(base_params, x_vec, sweep_type, scene_seed);
-    % 同一个 MC 下，所有横坐标点和所有方案使用同一批用户
+    user_pos_pool = user_pos_pools{idx_mc};
+    % 同一个 MC 下，所有 sweep 图、所有横坐标点、所有方案使用同一个 user_pos_pool。
     for idx_x = 1:nx
         params_case = make_params_for_sweep(base_params, sweep_type, x_vec(idx_x));
         scene_case = build_scene_with_fixed_users(params_case, user_pos_pool);
         for idx_scheme = 1:ns
+            init_seed_case = base_params.seed + 20000 + idx_mc;
+            alg_seed_case  = base_params.seed + 30000 + 100*idx_scheme + idx_mc;
             out_case = run_one_case(params_case, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode,...
-                base_params.seed + 20000*sweep_id + 1000*idx_x + idx_mc,...
-                base_params.seed + 30000*sweep_id + 1000*idx_x + 100*idx_scheme + idx_mc, scene_case);
+                init_seed_case, alg_seed_case, scene_case);
             R_all_eff(idx_x, idx_scheme, idx_mc) = out_case.final_R_eff;
             R_all_sum(idx_x, idx_scheme, idx_mc) = out_case.final_R_sum;
         end
@@ -161,7 +227,12 @@ end
 function params_case = make_params_for_sweep(base_params, sweep_type, x_value)
 params_case = base_params;
 if strcmp(sweep_type, 'snr')
-    params_case.sigma2 = base_params.sigma2 * 10.^((20 - x_value)/10);
+    if isfield(base_params, 'SNR_dB')
+        snr_ref_dB = base_params.SNR_dB;
+    else
+        snr_ref_dB = 20;   % 与上面保持一致
+    end
+    params_case.sigma2 = base_params.sigma2 * 10.^((snr_ref_dB - x_value)/10);
 elseif strcmp(sweep_type, 'K')
     params_case.K = x_value;
 elseif strcmp(sweep_type, 'N')
@@ -315,7 +386,10 @@ for i=1:2
         user_pos_pool = build_fixed_user_pool(params_ab,1,'final_bar',params_ab.seed+88000+100*i+mc);
         scene_case = build_scene_with_fixed_users(params_ab,user_pos_pool);
         for s=1:ns
-            out=run_one_case(params_ab,schemes(s).init_mode,schemes(s).alg_mode,params_ab.seed+mc,params_ab.seed+1000+s+mc,scene_case);
+            init_seed_case = params_ab.seed + 20000 + mc;
+            alg_seed_case  = params_ab.seed + 30000 + 100*s + mc;
+            out = run_one_case(params_ab, schemes(s).init_mode, schemes(s).alg_mode, ...
+                init_seed_case, alg_seed_case, scene_case);
             Rsum(i,s,mc)=out.final_R_sum; Reff(i,s,mc)=out.final_R_eff;
         end
     end
