@@ -131,7 +131,7 @@ schemes(2).name = 'Fixed W+S'; schemes(2).init_mode = 'uniform_fixed'; schemes(2
 schemes(3).name = 'Fixed W+S reW'; schemes(3).init_mode = 'uniform_fixed'; schemes(3).alg_mode = 'fixed_antenna_ws_reW';
 schemes(4).name = 'HG-Rsum'; schemes(4).init_mode = 'uniform_neutral'; schemes(4).alg_mode = 'hg_multiuser';
 schemes(5).name = 'SA joint'; schemes(5).init_mode = 'uniform_neutral'; schemes(5).alg_mode = 'sa_joint';
-schemes(6).name = 'PSO joint'; schemes(6).init_mode = 'uniform_neutral'; schemes(6).alg_mode = 'pso_joint';
+% schemes(6).name = 'PSO joint'; schemes(6).init_mode = 'uniform_neutral'; schemes(6).alg_mode = 'pso_joint';
 end
 
 function [mean_R, std_R, R_all_eff, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, x_vec, sweep_type, MC)
