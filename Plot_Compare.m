@@ -3,7 +3,6 @@ function compare_result = Plot_Compare(base_params)
 
 plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
-% 几何图只保留默认参数下 Proposed AO 的最终几何图，由 do_default_geometry 控制。
 
 do_snr         = false;
 do_K           = false;
