@@ -63,7 +63,7 @@ else
     MC = 10;
 end
 
-K_vec = max(K_vec, base_params.K_serv);
+K_vec = unique(max(K_vec, base_params.K_serv));
 
 % 注意：
 % default_check 使用 base_scene，用于和 main 单次默认结果做 sanity check。
@@ -558,7 +558,7 @@ function rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_p
 ns=numel(schemes); rate_cells=cell(ns,1);
 for mc=1:MC
 scene_case=build_scene_with_fixed_users(base_params, user_pos_pools{mc});
-for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+mc,base_params.seed+100+s+mc,scene_case); rate_cells{s}=[rate_cells{s}; out.rates_final(:)]; end
+for s=1:ns, init_seed_case = base_params.seed + 20000 + mc; alg_seed_case  = base_params.seed + 30000 + 100*s + mc; out = run_one_case(base_params, schemes(s).init_mode, schemes(s).alg_mode, init_seed_case, alg_seed_case, scene_case); rate_cells{s}=[rate_cells{s}; out.rates_final(:)]; end
 end
 end
 
