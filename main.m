@@ -130,7 +130,7 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'hg_multiuser';   % 'AO' | 'fixedX' | 'w_only' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws'
+scheme_mode = 'pso_joint';   % 'AO' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws' | 'fixedX' | 'w_only'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
