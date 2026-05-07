@@ -50,6 +50,8 @@ params.n_refr = 1.5;
 params.eta = params.lambda^2 / (4*pi);
 params.P_max = 1.0;
 params.sigma2 = 5e-9;
+params.SNR_dB = 20;
+% 绘图参考 SNR：当前 sigma2 对应 SNR_dB
 
 % 4) 初始化参数
 params.lambda_mov = 0.05;
