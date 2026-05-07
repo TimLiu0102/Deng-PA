@@ -11,8 +11,6 @@ do_M           = false;
 do_Dy          = true;
 do_convergence = false;
 do_cdf         = false;
-do_geometry    = false;
-
 do_final_bar_ab = true;
 do_H2_ab = true;
 do_default_geometry = true;
@@ -96,18 +94,6 @@ if do_cdf
     compare_result.cdf.rate_cells = rate_cells;
 end
 
-if do_geometry
-    idx_geo = 1;
-    scene_seed = base_params.seed + 10000*7 + 1;
-    user_pos_pool = build_fixed_user_pool(base_params, 1, 'geometry', scene_seed);
-    scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
-    init_seed = base_params.seed + 20000*7 + 1;
-    alg_seed = base_params.seed + 30000*7 + 100*idx_geo + 1;
-    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, init_seed, alg_seed, scene_case);
-    figure('Name', 'Fig7_Geometry', 'Position', [100 100 760 520]);
-    draw_geometry_case(geo_result);
-    compare_result.geometry = geo_result;
-end
 
 if do_default_geometry
     idx_geo = 1;
