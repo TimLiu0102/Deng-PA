@@ -1,45 +1,37 @@
 function compare_result = Plot_Compare(base_params)
-% Plot_Compare：五种方案的论文式对比绘图
-% 支持 debug/full 模式切换
-% 支持不同图分别开关
-% 不改已有算法文件，只在本文件内部重复调用现有初始化、AO模块和SA模块
+% Plot_Compare：多方案对比绘图
 
-%% ======================== 画图模式切换 ========================
-plot_mode = 'full';   % 'debug' 或 'full'
+plot_mode = 'debug';   % 'debug' 或 'full'
+% debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
+% 几何图只保留默认参数下 Proposed AO 的最终几何图，由 do_default_geometry 控制。
 
-%% ======================== 图形开关 ========================
-do_snr         = false;   % 图1：频谱效率 vs SNR
-do_K           = false;   % 图2：频谱效率 vs 用户数 K
-do_N           = true;   % 图3：频谱效率 vs 波导数 N
-do_M           = false;   % 图4：频谱效率 vs 每条波导 PA 数 M
-do_Dy          = true;   % 图5：频谱效率 vs 波导长度 / PA可移动范围 Dy
-do_convergence = false;   % 图6：收敛曲线
-do_cdf         = false;   % 图7：Per-user rate CDF
-do_geometry    = false;   % 图8：几何图
+do_snr         = false;
+do_K           = false;
+do_N           = true;
+do_M           = false;
+do_Dy          = true;
+do_convergence = false;
+do_cdf         = false;
+do_final_bar_ab = true;
+do_H2_ab = true;
+do_default_geometry = true;
 
 fprintf('\n================ 多方案对比绘图 ================\n');
 
-% 五种方案列表
 schemes = build_scheme_list();
 
-% debug 用于调试，full 用于正式出图
+snr_dB_vec = [-10 -5 0 5 10 15 20 25 30];
+K_vec = [8 16 24 32 48 64];
+N_vec = [2 4 6 8 10 12];
+M_vec = [2 4 6 8];
+Dy_vec = [4 6 8 10 12 15 20];
+
 if strcmp(plot_mode, 'debug')
-    MC = 1;
-    snr_dB_vec = [0 10 20];
-    K_vec = [16 32];
-    N_vec = [4 8];
-    M_vec = [4 6];
-    Dy_vec = [6 10];
+    MC = 3;
 else
-    MC = 30;
-    snr_dB_vec = [-10 -5 0 5 10 15 20 25 30];
-    K_vec = [8 16 24 32 48 64];
-    N_vec = [2 4 6 8 10 12];
-    M_vec = [2 4 6 8];
-    Dy_vec = [4 6 8 10 12 15 20];
+    MC = 10;
 end
 
-% 保证 K 不小于 K_serv
 K_vec = max(K_vec, base_params.K_serv);
 
 compare_result = struct();
@@ -47,634 +39,487 @@ compare_result.plot_mode = plot_mode;
 compare_result.MC = MC;
 compare_result.schemes = schemes;
 
-% 图1：SNR 扫描
 if do_snr
-    [mean_R, std_R, R_all] = run_sweep(base_params, schemes, snr_dB_vec, 'snr', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, snr_dB_vec, 'snr', MC);
     figure('Name', 'Fig1_SNR', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(snr_dB_vec, mean_R, std_R, schemes, 'SNR (dB)', 'Spectral Efficiency vs. SNR');
-
-    compare_result.snr = struct();
-    compare_result.snr.x = snr_dB_vec;
-    compare_result.snr.mean_R = mean_R;
-    compare_result.snr.std_R = std_R;
-    compare_result.snr.R_all = R_all;
+    draw_mean_error_curve(snr_dB_vec, mean_R, std_R, schemes, 'SNR (dB)', 'Effective Spectral Efficiency vs. SNR');
+    compare_result.snr = pack_sweep_result(snr_dB_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
-% 图2：K 扫描
 if do_K
-    [mean_R, std_R, R_all] = run_sweep(base_params, schemes, K_vec, 'K', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, K_vec, 'K', MC);
     figure('Name', 'Fig2_K', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(K_vec, mean_R, std_R, schemes, 'Number of users K', 'Spectral Efficiency vs. Number of Users');
-
-    compare_result.K = struct();
-    compare_result.K.x = K_vec;
-    compare_result.K.mean_R = mean_R;
-    compare_result.K.std_R = std_R;
-    compare_result.K.R_all = R_all;
+    draw_mean_error_curve(K_vec, mean_R, std_R, schemes, 'Number of users K', 'Effective Spectral Efficiency vs. Number of Users');
+    compare_result.K = pack_sweep_result(K_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
-% 图3：N 扫描
 if do_N
-    % N 扫描固定总候选用户数和服务用户数，只改变波导数 N
-    % 这里固定 K=32，与 main.m 的基准场景一致
     K_fixed_N = 32;
     K_serv_fixed_N = base_params.K_serv;
-
     params_N = base_params;
     params_N.K = K_fixed_N;
     params_N.NRF = K_serv_fixed_N;
     params_N.K_max = K_serv_fixed_N;
     params_N.K_serv = min(params_N.NRF, params_N.K_max);
 
-    [mean_R, std_R, R_all] = run_sweep(params_N, schemes, N_vec, 'N', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(params_N, schemes, N_vec, 'N', MC);
     figure('Name', 'Fig3_N', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Spectral Efficiency vs. Number of Waveguides');
-
-    compare_result.N = struct();
-    compare_result.N.x = N_vec;
-    compare_result.N.K_fixed = K_fixed_N;
-    compare_result.N.K_serv_fixed = params_N.K_serv;
-    compare_result.N.mean_R = mean_R;
-    compare_result.N.std_R = std_R;
-    compare_result.N.R_all = R_all;
+    draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Effective Spectral Efficiency vs. Number of Waveguides');
+    compare_result.N = pack_sweep_result(N_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
-% 图4：M 扫描
 if do_M
-    [mean_R, std_R, R_all] = run_sweep(base_params, schemes, M_vec, 'M', MC);
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, M_vec, 'M', MC);
     figure('Name', 'Fig4_M', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(M_vec, mean_R, std_R, schemes, 'Number of PAs per waveguide M', 'Spectral Efficiency vs. Number of PAs');
-
-    compare_result.M = struct();
-    compare_result.M.x = M_vec;
-    compare_result.M.mean_R = mean_R;
-    compare_result.M.std_R = std_R;
-    compare_result.M.R_all = R_all;
+    draw_mean_error_curve(M_vec, mean_R, std_R, schemes, 'Number of PAs per waveguide M', 'Effective Spectral Efficiency vs. Number of PAs');
+    compare_result.M = pack_sweep_result(M_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
-% 图5：Dy 扫描
 if do_Dy
-    % Dy 表示波导长度，同时也是 PA 沿 y 方向的可移动范围
-    % 用户区域保持 base_params.user_y_rng 不变，只改变 PA 可移动范围
-    [mean_R, std_R, R_all] = run_sweep(base_params, schemes, Dy_vec, 'Dy', MC);
-
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, Dy_vec, 'Dy', MC);
     figure('Name', 'Fig5_Dy', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(Dy_vec, mean_R, std_R, schemes, ...
-        'Waveguide length / movable range D_y (m)', ...
-        'Spectral Efficiency vs. Waveguide Length');
-
-    compare_result.Dy = struct();
-    compare_result.Dy.x = Dy_vec;
-    compare_result.Dy.mean_R = mean_R;
-    compare_result.Dy.std_R = std_R;
-    compare_result.Dy.R_all = R_all;
+    draw_mean_error_curve(Dy_vec, mean_R, std_R, schemes, 'Waveguide length / PA movable range D_y (m)', 'Effective Spectral Efficiency vs. Waveguide Length');
+    compare_result.Dy = pack_sweep_result(Dy_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
-% 图6：收敛曲线
 if do_convergence
     conv_results = run_convergence_cases(base_params, schemes);
     draw_convergence(conv_results, schemes);
-
     compare_result.convergence = conv_results;
 end
 
-% 图7：CDF
 if do_cdf
     rate_cells = collect_rate_cdf_data(base_params, schemes, MC);
     figure('Name', 'Fig6_CDF', 'Position', [100 100 760 520]);
     draw_rate_cdf(rate_cells, schemes);
-
-    compare_result.cdf = struct();
     compare_result.cdf.rate_cells = rate_cells;
 end
 
-% 图8：几何图（只画“所提初始化 + 所提优化算法”）
-if do_geometry
-    idx_geo = 2;
-    scene_seed = base_params.seed + 10000*7 + 1;
-    user_pos_pool = build_fixed_user_pool(base_params, 1, 'geometry', scene_seed);
+
+if do_default_geometry
+    idx_geo = 1;
+    scene_seed = base_params.seed + 10000*17 + 1;
+    user_pos_pool = build_fixed_user_pool(base_params, 1, 'geometry_default', scene_seed);
     scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
-    init_seed = base_params.seed + 20000*7 + 1;
-    alg_seed = base_params.seed + 30000*7 + 100*idx_geo + 1;
-    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, init_seed, alg_seed, scene_case);
-
-    figure('Name', 'Fig7_Geometry', 'Position', [100 100 760 520]);
+    geo_result = run_one_case(base_params, schemes(idx_geo).init_mode, schemes(idx_geo).alg_mode, base_params.seed+1, base_params.seed+2, scene_case);
+    figure('Name', 'Fig_Default_Geometry', 'Position', [100 100 760 520]);
     draw_geometry_case(geo_result);
-
     compare_result.geometry = geo_result;
 end
 
+if do_final_bar_ab
+    final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC);
+    draw_final_bar_ab(final_bar_ab, schemes);
+    compare_result.final_bar_ab = final_bar_ab;
 end
 
-%% ======================== 本地子函数 ========================
+if do_H2_ab
+    H2_ab = draw_H2_ab_cases(base_params);
+    compare_result.H2_ab = H2_ab;
+end
+
+end
+
+function s = pack_sweep_result(x,mean_R,std_R,R_all,mean_R_sum,std_R_sum,R_all_sum)
+s = struct('x',x,'mean_R',mean_R,'std_R',std_R,'R_all',R_all,...
+    'mean_R_sum',mean_R_sum,'std_R_sum',std_R_sum,'R_all_sum',R_all_sum);
+end
+
 function schemes = build_scheme_list()
-% 方案列表：五种对比方案
 schemes = struct('name', {}, 'init_mode', {}, 'alg_mode', {});
-
-schemes(1).name = 'Rand init + AO';
-schemes(1).init_mode = 'random';
-schemes(1).alg_mode = 'proposed';
-
-schemes(2).name = 'Prop init + AO';
-schemes(2).init_mode = 'proposed';
-schemes(2).alg_mode = 'proposed';
-
-schemes(3).name = 'Rand init + W';
-schemes(3).init_mode = 'random';
-schemes(3).alg_mode = 'w_only';
-
-schemes(4).name = 'Prop init + W';
-schemes(4).init_mode = 'proposed';
-schemes(4).alg_mode = 'w_only';
-
-schemes(5).name = 'Rand init + SA';
-schemes(5).init_mode = 'random';
-schemes(5).alg_mode = 'sa_joint';
+schemes(1).name = 'Proposed AO'; schemes(1).init_mode = 'paper'; schemes(1).alg_mode = 'AO';
+schemes(2).name = 'Fixed W+S'; schemes(2).init_mode = 'uniform_fixed'; schemes(2).alg_mode = 'fixed_antenna_ws';
+schemes(3).name = 'Fixed W+S reW'; schemes(3).init_mode = 'uniform_fixed'; schemes(3).alg_mode = 'fixed_antenna_ws_reW';
+schemes(4).name = 'HG-Rsum'; schemes(4).init_mode = 'uniform_neutral'; schemes(4).alg_mode = 'hg_multiuser';
+schemes(5).name = 'SA joint'; schemes(5).init_mode = 'uniform_neutral'; schemes(5).alg_mode = 'sa_joint';
+schemes(6).name = 'PSO joint'; schemes(6).init_mode = 'uniform_neutral'; schemes(6).alg_mode = 'pso_joint';
 end
 
-function [mean_R, std_R, R_all] = run_sweep(base_params, schemes, x_vec, sweep_type, MC)
-% 对一个横坐标向量进行批量扫描
-ns = numel(schemes);
-nx = numel(x_vec);
-R_all = zeros(nx, ns, MC);
-
+function [mean_R, std_R, R_all_eff, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, x_vec, sweep_type, MC)
+ns = numel(schemes); nx = numel(x_vec);
+R_all_eff = zeros(nx, ns, MC); R_all_sum = zeros(nx, ns, MC);
 sweep_id = get_sweep_id(sweep_type);
-
 for idx_mc = 1:MC
-    % 同一个 MC 先生成固定用户池
     scene_seed = base_params.seed + 10000*sweep_id + idx_mc;
     user_pos_pool = build_fixed_user_pool(base_params, x_vec, sweep_type, scene_seed);
-
-    % 同一个 MC 下，所有横坐标点和所有方案共用同一批用户
+    % 同一个 MC 下，所有横坐标点和所有方案使用同一批用户
     for idx_x = 1:nx
-        x_val = x_vec(idx_x);
-        params_case = make_params_for_sweep(base_params, sweep_type, x_val);
+        params_case = make_params_for_sweep(base_params, sweep_type, x_vec(idx_x));
         scene_case = build_scene_with_fixed_users(params_case, user_pos_pool);
-
         for idx_scheme = 1:ns
-            init_seed = base_params.seed + 20000*sweep_id + 1000*idx_x + idx_mc;
-            alg_seed = base_params.seed + 30000*sweep_id + 1000*idx_x + 100*idx_scheme + idx_mc;
-            out_case = run_one_case(params_case, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
-            R_all(idx_x, idx_scheme, idx_mc) = out_case.final_R;
+            out_case = run_one_case(params_case, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode,...
+                base_params.seed + 20000*sweep_id + 1000*idx_x + idx_mc,...
+                base_params.seed + 30000*sweep_id + 1000*idx_x + 100*idx_scheme + idx_mc, scene_case);
+            R_all_eff(idx_x, idx_scheme, idx_mc) = out_case.final_R_eff;
+            R_all_sum(idx_x, idx_scheme, idx_mc) = out_case.final_R_sum;
         end
     end
 end
-
-mean_R = squeeze(mean(R_all, 3));
-std_R = squeeze(std(R_all, 0, 3));
-
-if isvector(mean_R)
-    mean_R = mean_R(:);
-end
-if isvector(std_R)
-    std_R = std_R(:);
-end
+mean_R = squeeze(mean(R_all_eff,3)); std_R = squeeze(std(R_all_eff,0,3));
+mean_R_sum = squeeze(mean(R_all_sum,3)); std_R_sum = squeeze(std(R_all_sum,0,3));
 end
 
 function params_case = make_params_for_sweep(base_params, sweep_type, x_value)
-% 根据扫描类型构造 params_case
 params_case = base_params;
-
 if strcmp(sweep_type, 'snr')
-    snr_ref_dB = 20;
-    sigma2_ref = base_params.sigma2;
-    params_case.sigma2 = sigma2_ref * 10.^((snr_ref_dB - x_value)/10);
+    params_case.sigma2 = base_params.sigma2 * 10.^((20 - x_value)/10);
 elseif strcmp(sweep_type, 'K')
     params_case.K = x_value;
 elseif strcmp(sweep_type, 'N')
-    % N 扫描只改变波导数 N
-    % 总候选用户数 K 和服务用户数 K_serv 在调用前固定
     params_case.N = x_value;
 elseif strcmp(sweep_type, 'M')
     params_case.M = x_value;
 elseif strcmp(sweep_type, 'Dy')
-    % Dy 表示波导长度，也是 PA 的可移动范围
-    % 这里只改变 Dy，不改变用户分布区域
-    params_case.Dy = x_value;
+    if isfield(params_case, 'waveguide_Dy')
+        params_case.waveguide_Dy = x_value;
+        params_case.Dy = params_case.waveguide_Dy;
+    else
+        params_case.Dy = x_value;
+    end
 else
-    error('make_params_for_sweep: unsupported sweep_type');
+    error('unsupported sweep_type');
 end
 end
 
 function out_case = run_one_case(params_case, init_mode, alg_mode, init_seed, alg_seed, scene_in)
-% 单个实验：初始化 + 算法运行 + 指标整理
-if nargin >= 6 && ~isempty(scene_in)
-    scene = scene_in;
-else
-    rng(init_seed);
-    scene = Channel_model('build_scene', params_case, [], [], []);
-end
-
+if nargin >= 6 && ~isempty(scene_in), scene = scene_in; else, rng(init_seed); scene = Channel_model('build_scene', params_case, [], [], []); end
 model = Problem_formulation(params_case, scene);
-
-% 初始化方式
 rng(init_seed);
-if strcmp(init_mode, 'random')
+if strcmp(init_mode, 'paper')
+    state = Initialization(params_case, scene, model);
+elseif strcmp(init_mode, 'uniform_neutral')
+    state = Initialization_uniform_neutral(params_case, scene, model);
+elseif strcmp(init_mode, 'uniform_fixed')
+    state = Initialization_uniform_fixed(params_case, scene, model);
+elseif strcmp(init_mode, 'uniform')
+    state = Initialization_uniform(params_case, scene, model);
+elseif strcmp(init_mode, 'random')
     state = Initialization_ra(params_case, scene, model);
 else
-    state = Initialization(params_case, scene, model);
+    error('unsupported init_mode');
 end
-
-% 历史量初始化
-history = init_history(params_case, scene, state);
-
-% 算法内部随机性
 rng(alg_seed);
-
-% 算法模式
-if strcmp(alg_mode, 'proposed')
-    [state, history] = run_proposed_ao(params_case, scene, model, state, history);
-elseif strcmp(alg_mode, 'w_only')
-    [state, history] = run_w_only(params_case, scene, model, state, history);
+if strcmp(alg_mode, 'AO')
+    [state, history] = run_AO_case(params_case, scene, model, state);
+elseif strcmp(alg_mode, 'fixed_antenna_ws')
+    [state, history] = run_fixed_antenna_ws_case(params_case, scene, model, state);
+elseif strcmp(alg_mode, 'fixed_antenna_ws_reW')
+    [state, history] = run_fixed_antenna_ws_reW_case(params_case, scene, model, state);
+elseif strcmp(alg_mode, 'hg_multiuser')
+    [state, history] = HG_multiuser(params_case, scene, model, state);
 elseif strcmp(alg_mode, 'sa_joint')
     [state, history] = run_sa_joint_case(params_case, scene, model, state);
+elseif strcmp(alg_mode, 'pso_joint')
+    [state, history] = run_pso_joint_case(params_case, scene, model, state);
 else
-    error('run_one_case: unsupported alg_mode');
+    error('unsupported alg_mode');
 end
-
-% 统一输出结构
-final_R = Signal_model('sum_rate', params_case, scene, state, []);
+final_R_sum = Signal_model('sum_rate', params_case, scene, state, []);
+[final_R_eff, final_detail] = Effective_rate_model(params_case, scene, state, []);
 rates_final = Signal_model('individual_rates', params_case, scene, state, []);
-
-out_case = struct();
-out_case.params = params_case;
-out_case.scene = scene;
-out_case.model = model;
-out_case.state = state;
-out_case.history = history;
-out_case.final_R = final_R;
-out_case.rates_final = rates_final;
+out_case = struct('params',params_case,'scene',scene,'model',model,'state',state,'history',history,...
+    'final_R',final_R_eff,'final_R_eff',final_R_eff,'final_R_sum',final_R_sum,'final_detail',final_detail,'rates_final',rates_final);
 end
 
-function history = init_history(params_case, scene, state)
-% 复用 main.m 的 history 初始化风格
-if ~isfield(state, 'swap_flag')
-    state.swap_flag = false;
-end
-
-rates0 = Signal_model('individual_rates', params_case, scene, state, []);
-R_old = sum(rates0);
-
-history = struct();
-history.X0 = state.X;
-history.theta0 = state.theta;
-history.phi0 = state.phi;
-history.S0 = state.S;
-history.rates0 = rates0;
-history.R_sum = R_old;
-
-history.R_after_W = [];
-history.R_after_angle = [];
-history.R_after_X = [];
-history.R_after_S = [];
-
-history.S_cells = {};
-history.X_cells = {};
-history.theta_cells = {};
-history.phi_cells = {};
-history.DEBUG_X_cells = {};
-history.swap_flag = false;
-end
-
-function [state, history] = run_proposed_ao(params_case, scene, model, state, history)
-% 对应 main.m 中 ao_final_w 逻辑
-if ~isfield(state, 'swap_flag')
-    state.swap_flag = false;
-end
-
-R_old = history.R_sum(end,1);
-history.X_update_mode = 'gradient';
-
-for t = 1:params_case.T_max
+function [state, history] = run_AO_case(params, scene, model, state)
+if ~isfield(state,'swap_flag'), state.swap_flag = false; end
+[Reff0, d0] = Effective_rate_model(params, scene, state, []);
+history = init_history_full(params, scene, state, Reff0, d0);
+for t=1:params.T_max
     state.t = t;
-    R_after_W = R_old;
+    state.W = AO_W(params, scene, model, state); [R1e,~] = Effective_rate_model(params, scene, state, []); R1 = Signal_model('sum_rate', params, scene, state, []);
+    [state.theta,state.phi] = AO_angle(params, scene, model, state); [R2e,~] = Effective_rate_model(params, scene, state, []); R2 = Signal_model('sum_rate', params, scene, state, []);
+    [state.X,dbg] = AO_X(params, scene, model, state); [R3e,~] = Effective_rate_model(params, scene, state, []); R3 = Signal_model('sum_rate', params, scene, state, []);
+    [state.S,state.swap_flag] = AO_S(params, scene, model, state); [R4e,d4] = Effective_rate_model(params, scene, state, []); R4 = Signal_model('sum_rate', params, scene, state, []);
+    history.R_after_W(end+1,1)=R1; history.R_after_angle(end+1,1)=R2; history.R_after_X(end+1,1)=R3; history.R_after_S(end+1,1)=R4;
+    history.R_eff_after_W(end+1,1)=R1e; history.R_eff_after_angle(end+1,1)=R2e; history.R_eff_after_X(end+1,1)=R3e; history.R_eff_after_S(end+1,1)=R4e;
+    history.R_sum(end+1,1)=R4; history.R_eff(end+1,1)=R4e; history.T_X(end+1,1)=d4.T_X; history.T_theta(end+1,1)=d4.T_theta; history.T_phi(end+1,1)=d4.T_phi; history.T_rec(end+1,1)=d4.T_rec; history.time_factor(end+1,1)=d4.time_factor;
+    history.S_cells{t,1}=state.S; history.X_cells{t,1}=state.X; history.theta_cells{t,1}=state.theta; history.phi_cells{t,1}=state.phi; history.swap_flag(end+1,1)=state.swap_flag; history.DEBUG_X_cells{t,1}=dbg;
+    if abs(history.R_eff(end)-history.R_eff(end-1)) < params.eps_outer, break; end
+end
+end
 
-    [state.theta, state.phi] = AO_angle(params_case, scene, model, state);
-    R_after_angle = Signal_model('sum_rate', params_case, scene, state, []);
+function [state, history] = run_fixed_antenna_ws_case(params, scene, model, state)
+if ~isfield(state,'swap_flag'), state.swap_flag = false; end
+X_fixed = state.X; theta_fixed = pi*ones(params.N,params.M); phi_fixed = zeros(params.N,params.M);
+state.theta=theta_fixed; state.phi=phi_fixed;
+[Reff0, d0] = Effective_rate_model(params, scene, state, []);
+history = init_history_full(params, scene, state, Reff0, d0); history.X_update_mode='fixed_antenna_ws';
+for t=1:params.T_max
+    state.t=t; state.X=X_fixed; state.theta=theta_fixed; state.phi=phi_fixed; state.W=AO_W(params, scene, model, state);
+    [state.S,state.swap_flag]=AO_S_fixed(params, scene, model, state); state.X=X_fixed; state.theta=theta_fixed; state.phi=phi_fixed;
+    R=Signal_model('sum_rate', params, scene, state, []); [Re,dt]=Effective_rate_model(params, scene, state, []);
+    history.R_sum(end+1,1)=R; history.R_eff(end+1,1)=Re; history.T_X(end+1,1)=dt.T_X; history.T_theta(end+1,1)=dt.T_theta; history.T_phi(end+1,1)=dt.T_phi; history.T_rec(end+1,1)=dt.T_rec; history.time_factor(end+1,1)=dt.time_factor;
+    history.S_cells{t,1}=state.S; history.X_cells{t,1}=state.X; history.theta_cells{t,1}=state.theta; history.phi_cells{t,1}=state.phi;
+    if abs(history.R_eff(end)-history.R_eff(end-1)) < params.eps_outer, break; end
+end
+end
 
-    [state.X, DEBUG_X_t] = AO_X(params_case, scene, model, state);
-    R_after_X = Signal_model('sum_rate', params_case, scene, state, []);
-
-    [state.S, state.swap_flag] = AO_S(params_case, scene, model, state);
-    R_after_S = Signal_model('sum_rate', params_case, scene, state, []);
-
-    history.R_after_W(end+1,1) = R_after_W;
-    history.R_after_angle(end+1,1) = R_after_angle;
-    history.R_after_X(end+1,1) = R_after_X;
-    history.R_after_S(end+1,1) = R_after_S;
-
-    R_new = R_after_S;
-    history.R_sum(end+1,1) = R_new;
-
+function [state, history] = run_fixed_antenna_ws_reW_case(params, scene, model, state)
+if exist('AO_S_fixed_reW.m','file') ~= 2
+    error('AO_S_fixed_reW.m not found. Cannot run Fixed W+S reW scheme.');
+end
+X_fixed = state.X; theta_fixed = pi*ones(params.N,params.M); phi_fixed = zeros(params.N,params.M);
+state.theta=theta_fixed; state.phi=phi_fixed;
+[Reff0, d0] = Effective_rate_model(params, scene, state, []);
+history = init_history_full(params, scene, state, Reff0, d0); history.X_update_mode='fixed_antenna_ws_reW';
+for t=1:params.T_max
+    state.t=t; state.X=X_fixed; state.theta=theta_fixed; state.phi=phi_fixed; state.W=AO_W(params, scene, model, state);
+    [state.S,state.W,state.swap_flag]=AO_S_fixed_reW(params, scene, model, state);
+    state.X=X_fixed; state.theta=theta_fixed; state.phi=phi_fixed;
+    R=Signal_model('sum_rate', params, scene, state, []); [Re,dt]=Effective_rate_model(params, scene, state, []);
+    history.R_sum(end+1,1)=R; history.R_eff(end+1,1)=Re; history.T_X(end+1,1)=dt.T_X; history.T_theta(end+1,1)=dt.T_theta; history.T_phi(end+1,1)=dt.T_phi; history.T_rec(end+1,1)=dt.T_rec; history.time_factor(end+1,1)=dt.time_factor;
     history.S_cells{t,1} = state.S;
     history.X_cells{t,1} = state.X;
     history.theta_cells{t,1} = state.theta;
     history.phi_cells{t,1} = state.phi;
     history.swap_flag(end+1,1) = state.swap_flag;
-    history.DEBUG_X_cells{t,1} = DEBUG_X_t;
+    if abs(history.R_eff(end)-history.R_eff(end-1)) < params.eps_outer, break; end
+end
+end
 
-    if abs(R_new - R_old) < params_case.eps_outer
-        break;
+function [state, history] = run_sa_joint_case(params, scene, model, state)
+[state, history] = SA_joint(params, scene, model, state); history = patch_history(history, scene, params, state, 'sa_joint');
+end
+function [state, history] = run_pso_joint_case(params, scene, model, state)
+[state, history] = PSO_joint(params, scene, model, state); history = patch_history(history, scene, params, state, 'pso_joint');
+end
+
+function history = patch_history(history, scene, params, state, mode)
+fields = {'DEBUG_X_cells','R_after_W','R_after_angle','R_after_X','R_after_S','R_eff_after_W','R_eff_after_angle','R_eff_after_X','R_eff_after_S','R_before_final_W','R_after_final_W'};
+for i=1:numel(fields), if ~isfield(history,fields{i}), history.(fields{i}) = []; end, end
+if ~isfield(history,'X_update_mode'), history.X_update_mode = mode; end
+Rsum = Signal_model('sum_rate', params, scene, state, []); [Reff,dt] = Effective_rate_model(params, scene, state, []);
+if ~isfield(history,'R_sum')||isempty(history.R_sum), history.R_sum=Rsum; else, history.R_sum(end,1)=Rsum; end
+if ~isfield(history,'R_eff')||isempty(history.R_eff), history.R_eff=Reff; else, history.R_eff(end,1)=Reff; end
+if ~isfield(history,'T_X')||isempty(history.T_X), history.T_X=dt.T_X; else, history.T_X(end,1)=dt.T_X; end
+if ~isfield(history,'T_theta')||isempty(history.T_theta), history.T_theta=dt.T_theta; else, history.T_theta(end,1)=dt.T_theta; end
+if ~isfield(history,'T_phi')||isempty(history.T_phi), history.T_phi=dt.T_phi; else, history.T_phi(end,1)=dt.T_phi; end
+if ~isfield(history,'T_rec')||isempty(history.T_rec), history.T_rec=dt.T_rec; else, history.T_rec(end,1)=dt.T_rec; end
+if ~isfield(history,'time_factor')||isempty(history.time_factor), history.time_factor=dt.time_factor; else, history.time_factor(end,1)=dt.time_factor; end
+end
+
+function h = init_history_full(params, scene, state, Reff0, d0)
+r0 = Signal_model('individual_rates', params, scene, state, []);
+h = struct(); h.X0=state.X; h.theta0=state.theta; h.phi0=state.phi; h.S0=state.S; h.rates0=r0;
+h.R_sum=sum(r0); h.R_eff=Reff0; h.T_X=d0.T_X; h.T_theta=d0.T_theta; h.T_phi=d0.T_phi; h.T_rec=d0.T_rec; h.time_factor=d0.time_factor;
+h.R_after_W=[]; h.R_after_angle=[]; h.R_after_X=[]; h.R_after_S=[]; h.R_eff_after_W=[]; h.R_eff_after_angle=[]; h.R_eff_after_X=[]; h.R_eff_after_S=[];
+h.S_cells={}; h.X_cells={}; h.theta_cells={}; h.phi_cells={}; h.DEBUG_X_cells={}; h.swap_flag=false;
+end
+
+function final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC)
+ab_cases = [0.5 0.3; 0.3 0.18]; ns = numel(schemes);
+Rsum = zeros(2,ns,MC); Reff = zeros(2,ns,MC);
+for i=1:2
+    params_ab = base_params; params_ab.a = ab_cases(i,1); params_ab.b = ab_cases(i,2);
+    for mc=1:MC
+        user_pos_pool = build_fixed_user_pool(params_ab,1,'final_bar',params_ab.seed+88000+100*i+mc);
+        scene_case = build_scene_with_fixed_users(params_ab,user_pos_pool);
+        for s=1:ns
+            out=run_one_case(params_ab,schemes(s).init_mode,schemes(s).alg_mode,params_ab.seed+mc,params_ab.seed+1000+s+mc,scene_case);
+            Rsum(i,s,mc)=out.final_R_sum; Reff(i,s,mc)=out.final_R_eff;
+        end
+    end
+end
+final_bar_ab.ab_cases = ab_cases;
+final_bar_ab.mean_R_sum_ab = squeeze(mean(Rsum,3)); final_bar_ab.std_R_sum_ab = squeeze(std(Rsum,0,3));
+final_bar_ab.mean_R_eff_ab = squeeze(mean(Reff,3)); final_bar_ab.std_R_eff_ab = squeeze(std(Reff,0,3));
+end
+
+function draw_final_bar_ab(final_bar_ab, schemes)
+for i=1:2
+    figure('Name',sprintf('Fig_FinalBar_ab_%d',i),'Position',[100 100 820 520]);
+    Y = [final_bar_ab.mean_R_sum_ab(i,:).', final_bar_ab.mean_R_eff_ab(i,:).'];
+    hb = bar(Y); hold on;
+    x1 = hb(1).XEndPoints; x2 = hb(2).XEndPoints;
+    errorbar(x1, Y(:,1), final_bar_ab.std_R_sum_ab(i,:).', 'k.', 'LineWidth', 1.0);
+    errorbar(x2, Y(:,2), final_bar_ab.std_R_eff_ab(i,:).', 'k.', 'LineWidth', 1.0);
+    xticks(1:numel(schemes)); xticklabels({schemes.name}); xtickangle(30);
+    legend({'R_{sum}','R_{eff}'},'Location','northwest');
+    title(sprintf('Final performance, a=%.2f, b=%.2f', final_bar_ab.ab_cases(i,1), final_bar_ab.ab_cases(i,2)));
+    ylabel('Rate (bit/s/Hz)'); grid on;
+end
+end
+
+function H2_ab = draw_H2_ab_cases(base_params)
+ab_cases = [0.5 0.3;
+            0.3 0.18];
+
+params_h2 = base_params;
+params_h2.N = 1;
+params_h2.M = 1;
+params_h2.K = 1;
+params_h2.NRF = 1;
+params_h2.K_max = 1;
+params_h2.K_serv = 1;
+
+if isfield(params_h2,'waveguide_Dx')
+    wg_Dx = params_h2.waveguide_Dx;
+else
+    wg_Dx = params_h2.Dx;
+end
+if isfield(params_h2,'waveguide_Dy')
+    wg_Dy = params_h2.waveguide_Dy;
+else
+    wg_Dy = params_h2.Dy;
+end
+if isfield(params_h2,'area_Dx')
+    area_Dx = params_h2.area_Dx;
+else
+    area_Dx = params_h2.Dx;
+end
+if isfield(params_h2,'area_Dy')
+    area_Dy = params_h2.area_Dy;
+else
+    area_Dy = params_h2.Dy;
+end
+
+x_grid = linspace(0, area_Dx, 81);
+y_grid = linspace(0, area_Dy, 81);
+z_grid = linspace(0, params_h2.d, 31);
+
+state = struct();
+state.X = wg_Dy / 2;
+state.theta = pi;
+state.phi = 0;
+
+H2_ab = struct();
+H2_ab.ab_cases = ab_cases;
+H2_ab.x_grid = x_grid;
+H2_ab.y_grid = y_grid;
+H2_ab.z_grid = z_grid;
+H2_ab.state = state;
+
+for ia = 1:size(ab_cases,1)
+    params_h2.a = ab_cases(ia,1);
+    params_h2.b = ab_cases(ia,2);
+
+    scene = Channel_model('build_scene', params_h2, [], [], []);
+    scene.xW = wg_Dx / 2;
+    scene.feed_pos = [scene.xW; 0; params_h2.d];
+    scene.N = 1;
+    scene.M = 1;
+
+    [Yg, Xg] = meshgrid(y_grid, x_grid);
+    H3 = zeros(numel(x_grid), numel(y_grid), numel(z_grid));
+
+    for iz = 1:numel(z_grid)
+        Zg = z_grid(iz) * ones(size(Xg));
+        scene.user_pos = [Xg(:).'; Yg(:).'; Zg(:).'];
+        scene.K = numel(Xg);
+
+        extra = struct();
+        extra.use_all = true;
+        ch_out = Channel_model('all_users', params_h2, scene, state, extra);
+        H = ch_out.H;
+
+        pow_map = abs(H).^2;
+        H3(:,:,iz) = reshape(pow_map, size(Xg));
     end
 
-    R_old = R_new;
-end
+    figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), 'Position', [100 100 1100 480]);
 
-R_before_final_W = Signal_model('sum_rate', params_case, scene, state, []);
-state.W = AO_W(params_case, scene, model, state);
-R_after_final_W = Signal_model('sum_rate', params_case, scene, state, []);
+    subplot(1,2,1);
+    [Y3, X3, Z3] = meshgrid(y_grid, x_grid, z_grid);
+    H3_plot = H3 / max(H3(:) + eps);
+    iso_outer = 0.05;
+    iso_inner = 0.20;
 
-history.R_before_final_W = R_before_final_W;
-history.R_after_final_W = R_after_final_W;
-history.R_sum(end,1) = R_after_final_W;
-end
-
-function [state, history] = run_w_only(params_case, scene, model, state, history)
-% 对应 main.m 中 w_only 逻辑
-if ~isfield(state, 'swap_flag')
-    state.swap_flag = false;
-end
-
-R_old = history.R_sum(end,1);
-history.X_update_mode = 'none';
-history.R_before_final_W = [];
-history.R_after_final_W = [];
-
-for t = 1:params_case.T_max
-    state.t = t;
-    state.swap_flag = false;
-
-    state.W = AO_W(params_case, scene, model, state);
-    R_after_W = Signal_model('sum_rate', params_case, scene, state, []);
-
-    R_after_angle = R_after_W;
-    R_after_X = R_after_W;
-    R_after_S = R_after_W;
-
-    history.R_after_W(end+1,1) = R_after_W;
-    history.R_after_angle(end+1,1) = R_after_angle;
-    history.R_after_X(end+1,1) = R_after_X;
-    history.R_after_S(end+1,1) = R_after_S;
-
-    R_new = R_after_S;
-    history.R_sum(end+1,1) = R_new;
-
-    history.S_cells{t,1} = state.S;
-    history.X_cells{t,1} = state.X;
-    history.theta_cells{t,1} = state.theta;
-    history.phi_cells{t,1} = state.phi;
-    history.swap_flag(end+1,1) = state.swap_flag;
-    history.DEBUG_X_cells{t,1} = [];
-
-    if abs(R_new - R_old) < params_case.eps_outer
-        break;
+    fv1 = isosurface(Y3, X3, Z3, H3_plot, iso_outer);
+    if ~isempty(fv1.vertices)
+        p1 = patch(fv1);
+        isonormals(Y3, X3, Z3, H3_plot, p1);
+        set(p1, 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'none', 'FaceAlpha', 0.20);
+        hold on;
+    else
+        hold on;
     end
 
-    R_old = R_new;
-end
-end
+    fv2 = isosurface(Y3, X3, Z3, H3_plot, iso_inner);
+    if ~isempty(fv2.vertices)
+        p2 = patch(fv2);
+        isonormals(Y3, X3, Z3, H3_plot, p2);
+        set(p2, 'FaceColor', [0.1 0.3 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.55);
+    end
 
-function [state, history] = run_sa_joint_case(params_case, scene, model, state)
-% 直接调用 SA_joint，并整理成统一历史字段
-[state_best, history_sa] = SA_joint(params_case, scene, model, state);
-state = state_best;
-history = history_sa;
+    plot3(state.X, scene.xW, params_h2.d, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
+    xlabel('y (m)');
+    ylabel('x (m)');
+    zlabel('z (m)');
+    title(sprintf('3D beam shape, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+    grid on;
+    axis tight;
+    daspect([1 1 0.6]);
+    view(45,25);
+    camlight headlight;
+    camlight right;
+    lighting gouraud;
+    box on;
+    hold off;
 
-if ~isfield(history, 'DEBUG_X_cells')
-    history.DEBUG_X_cells = {};
+    subplot(1,2,2);
+    H2_z0 = H3(:,:,1);
+    H2_z0_plot = max(H2_z0, 1e-30);
+    imagesc(y_grid, x_grid, H2_z0_plot);
+    set(gca, 'YDir', 'normal');
+    set(gca, 'ColorScale', 'log');
+    hold on;
+    plot(state.X, scene.xW, 'w.', 'MarkerSize', 18);
+    hold off;
+    colorbar;
+    xlabel('y (m)');
+    ylabel('x (m)');
+    title(sprintf('z = 0 plane |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+
+    H2_ab.scene_xW = scene.xW;
+    H2_ab.H3{ia} = H3;
+    H2_ab.H2_z0{ia} = H2_z0;
 end
-if ~isfield(history, 'X_update_mode')
-    history.X_update_mode = 'none';
-end
-if ~isfield(history, 'R_after_W')
-    history.R_after_W = [];
-end
-if ~isfield(history, 'R_after_angle')
-    history.R_after_angle = [];
-end
-if ~isfield(history, 'R_after_X')
-    history.R_after_X = [];
-end
-if ~isfield(history, 'R_after_S')
-    history.R_after_S = [];
-end
-if ~isfield(history, 'R_before_final_W')
-    history.R_before_final_W = [];
-end
-if ~isfield(history, 'R_after_final_W')
-    history.R_after_final_W = [];
-end
-history.R_sum(end,1) = Signal_model('sum_rate', params_case, scene, state, []);
 end
 
 function conv_results = run_convergence_cases(base_params, schemes)
-% 固定参数，每种方案跑一次并收敛曲线对比
-ns = numel(schemes);
-conv_results = cell(ns,1);
-
-scene_seed = base_params.seed + 10000*5 + 1;
-user_pos_pool = build_fixed_user_pool(base_params, 1, 'convergence', scene_seed);
-scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
-
-for idx_scheme = 1:ns
-    init_seed = base_params.seed + 20000*5 + 1;
-    alg_seed = base_params.seed + 30000*5 + 100*idx_scheme + 1;
-    out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
-    conv_results{idx_scheme} = out_case.history.R_sum(:);
+ns=numel(schemes); conv_results=cell(ns,1); scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'conv',base_params.seed+50001));
+for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+1,base_params.seed+100+s,scene_case); conv_results{s}=out.history.R_eff(:); end
 end
-end
-
 function rate_cells = collect_rate_cdf_data(base_params, schemes, MC)
-% 固定参数，多次 Monte Carlo 收集所有服务用户速率
-ns = numel(schemes);
-rate_cells = cell(ns,1);
-
-for idx_mc = 1:MC
-    scene_seed = base_params.seed + 10000*6 + idx_mc;
-    user_pos_pool = build_fixed_user_pool(base_params, 1, 'cdf', scene_seed);
-    scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
-
-    for idx_scheme = 1:ns
-        init_seed = base_params.seed + 20000*6 + idx_mc;
-        alg_seed = base_params.seed + 30000*6 + 100*idx_scheme + idx_mc;
-        out_case = run_one_case(base_params, schemes(idx_scheme).init_mode, schemes(idx_scheme).alg_mode, init_seed, alg_seed, scene_case);
-        rate_cells{idx_scheme} = [rate_cells{idx_scheme}; out_case.rates_final(:)]; %#ok<AGROW>
-    end
+ns=numel(schemes); rate_cells=cell(ns,1);
+for mc=1:MC
+scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'cdf',base_params.seed+60000+mc));
+for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+mc,base_params.seed+100+s+mc,scene_case); rate_cells{s}=[rate_cells{s}; out.rates_final(:)]; end
 end
 end
 
 function user_pos_pool = build_fixed_user_pool(base_params, x_vec, sweep_type, scene_seed)
-% 同一个 MC 下生成固定用户池
-params_pool = base_params;
-
-if strcmp(sweep_type, 'K')
-    params_pool.K = max(x_vec);
-else
-    params_pool.K = base_params.K;
+params_pool=base_params; if strcmp(sweep_type,'K'), params_pool.K=max(x_vec); else, params_pool.K=base_params.K; end
+rng(scene_seed); scene_pool=Channel_model('build_scene', params_pool, [], [], []); user_pos_pool=scene_pool.user_pos;
 end
-
-rng(scene_seed);
-scene_pool = Channel_model('build_scene', params_pool, [], [], []);
-user_pos_pool = scene_pool.user_pos;
-end
-
 function scene_case = build_scene_with_fixed_users(params_case, user_pos_pool)
-% 按当前 params_case 生成波导几何，再覆盖用户位置
-scene_case = Channel_model('build_scene', params_case, [], [], []);
-
-K_case = params_case.K;
-scene_case.user_pos = user_pos_pool(:, 1:K_case);
-scene_case.K = K_case;
-scene_case.M = params_case.M;
-scene_case.N = params_case.N;
+scene_case = Channel_model('build_scene', params_case, [], [], []); scene_case.user_pos = user_pos_pool(:,1:params_case.K); scene_case.K=params_case.K; scene_case.M=params_case.M; scene_case.N=params_case.N;
 end
-
 function draw_mean_error_curve(x_vec, mean_R, std_R, schemes, x_label_text, title_text)
-% 均值 + 标准差误差棒图
-for s = 1:numel(schemes)
-    plot(x_vec, mean_R(:,s), '-o', 'LineWidth', 1.4, 'MarkerSize', 5);
-    hold on;
+for s=1:numel(schemes), plot(x_vec,mean_R(:,s),'-o','LineWidth',1.4,'MarkerSize',5); hold on; end
+xlabel(x_label_text); ylabel('Average effective spectral efficiency (bit/s/Hz)'); title(title_text,'FontSize',11);
+legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
-xlabel(x_label_text);
-ylabel('Average spectral efficiency (bit/s/Hz)');
-title(title_text, 'FontSize', 11);
-legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
-grid on;
-set(gca, 'FontSize', 10);
-end
-
 function draw_convergence(conv_results, schemes)
-% 五种方案收敛曲线，使用 broken x-axis 思路压缩长迭代区间
-% 0~30 正常显示，30 之后压缩显示，避免 SA_joint 把 AO 曲线挤在左侧
-figure('Name', 'Fig5_Convergence_BrokenAxis', 'Position', [100 100 820 520]);
-
-break_iter = 30;
-compress_ratio = 0.15;
-
-for s = 1:numel(schemes)
-    r = conv_results{s};
-    it_real = 0:(numel(r)-1);
-
-    % 将真实迭代次数映射到显示用横坐标
-    it_plot = it_real;
-    idx = it_real > break_iter;
-    it_plot(idx) = break_iter + (it_real(idx) - break_iter) * compress_ratio;
-
-    plot(it_plot, r, '-o', 'LineWidth', 1.2);
-    hold on;
+figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 820 520]); for s=1:numel(schemes), plot(conv_results{s},'-o','LineWidth',1.2); hold on; end
+xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence'); legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
-
-% 设置横坐标刻度：显示真实迭代次数，但位置是压缩后的
-real_ticks = [0 10 20 30 100 300 500];
-plot_ticks = real_ticks;
-idx_tick = real_ticks > break_iter;
-plot_ticks(idx_tick) = break_iter + (real_ticks(idx_tick) - break_iter) * compress_ratio;
-
-set(gca, 'XTick', plot_ticks);
-set(gca, 'XTickLabel', string(real_ticks));
-
-% 在断轴位置画虚线
-yl = ylim;
-plot([break_iter break_iter], yl, 'k--', 'LineWidth', 1.0);
-ylim(yl);
-
-xlabel('Iteration index');
-ylabel('Spectral efficiency (bit/s/Hz)');
-title('Convergence with Compressed x-axis', 'FontSize', 11);
-legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
-grid on;
-
-% 在图中标注横坐标被压缩
-text(break_iter + 2, yl(2) - 0.08*(yl(2)-yl(1)), ...
-    'compressed after 30', ...
-    'FontSize', 8);
-set(gca, 'FontSize', 10);
-end
-
 function draw_rate_cdf(rate_cells, schemes)
-% 五种方案的单用户速率 CDF
-for s = 1:numel(schemes)
-    r = sort(rate_cells{s}(:));
-    F = (1:numel(r)) / numel(r);
-    plot(r, F, 'LineWidth', 1.2);
-    hold on;
+for s=1:numel(schemes), r=sort(rate_cells{s}(:)); F=(1:numel(r))/numel(r); plot(r,F,'LineWidth',1.2); hold on; end
+xlabel('Per-user rate (bit/s/Hz)'); ylabel('CDF'); title('CDF of Per-user Rate','FontSize',11); legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
-xlabel('Per-user rate (bit/s/Hz)');
-ylabel('CDF');
-title('CDF of Per-user Rate', 'FontSize', 11);
-legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
-grid on;
-set(gca, 'FontSize', 10);
-end
-
 function draw_geometry_case(geo_result)
-% 代表性几何图：所提初始化 + 所提优化算法
-params_case = geo_result.params;
-scene = geo_result.scene;
-state = geo_result.state;
-history = geo_result.history;
-
-user_pos = scene.user_pos;
-S = state.S;
-M = params_case.M;
-
-% 全部用户
-scatter(user_pos(1,:), user_pos(2,:), 25, 'filled');
-hold on;
-
-% 服务用户
-scatter(user_pos(1,S), user_pos(2,S), 70);
-
-% 波导、初始PA、最终PA
-for n = 1:params_case.N
-    line([scene.xW(n), scene.xW(n)], [0, params_case.Dy]);
-    plot(scene.xW(n)*ones(1,M), history.X0(n,:), 'o');
-    plot(scene.xW(n)*ones(1,M), state.X(n,:), 'x');
+params_case=geo_result.params; scene=geo_result.scene; state=geo_result.state; history=geo_result.history; M=params_case.M; user_pos=scene.user_pos; S=state.S;
+if isfield(params_case,'waveguide_Dy'), wg_Dy=params_case.waveguide_Dy; else, wg_Dy=params_case.Dy; end
+if isfield(params_case,'area_Dx'), area_Dx=params_case.area_Dx; else, area_Dx=params_case.Dx; end
+if isfield(params_case,'area_Dy'), area_Dy=params_case.area_Dy; else, area_Dy=params_case.Dy; end
+scatter(user_pos(1,:), user_pos(2,:), 25, 'filled'); hold on; scatter(user_pos(1,S), user_pos(2,S), 70);
+for n=1:params_case.N, line([scene.xW(n),scene.xW(n)],[0,wg_Dy]); plot(scene.xW(n)*ones(1,M),history.X0(n,:),'o'); plot(scene.xW(n)*ones(1,M),state.X(n,:),'x'); end
+x_pa = repmat(scene.xW(:),1,M); x_pa=x_pa(:); y_pa=state.X(:); u=sin(state.theta(:)).*cos(state.phi(:)); v=sin(state.theta(:)).*sin(state.phi(:)); nm=sqrt(u.^2+v.^2); quiver(x_pa,y_pa,u./(nm+eps),v./(nm+eps),0.6,'LineWidth',0.8);
+xlim([0 area_Dx]); ylim([0 area_Dy]); xlabel('x (m)'); ylabel('y (m)'); title('Final PA/User Configuration','FontSize',11);
+legend({'All users','Served users','Waveguide','Initial PA','Final PA','PA orientation'},'Location','eastoutside','FontSize',8); grid on; set(gca,'FontSize',10);
 end
-
-% 最终PA朝向箭头：画三维方向向量在 x-y 平面的投影
-% theta 是与 z 轴的夹角，phi 是 x-y 平面内的方位角
-% 因此方向向量为 [sin(theta)cos(phi), sin(theta)sin(phi), cos(theta)]
-% 二维几何图只显示 x-y 平面，所以取前两个分量
-x_pa = repmat(scene.xW(:), 1, M);
-x_pa = x_pa(:);
-y_pa = state.X(:);
-
-theta_vec = state.theta(:);
-phi_vec = state.phi(:);
-
-u = sin(theta_vec) .* cos(phi_vec);
-v = sin(theta_vec) .* sin(phi_vec);
-
-% 只保留方向，统一箭头长度，避免箭头长短影响观察
-uv_norm = sqrt(u.^2 + v.^2);
-u = u ./ (uv_norm + eps);
-v = v ./ (uv_norm + eps);
-
-quiver(x_pa, y_pa, u, v, 0.6, 'LineWidth', 0.8);
-
-xlabel('x (m)');
-ylabel('y (m)');
-title('Final PA/User Configuration', 'FontSize', 11);
-legend({'All users', 'Served users', 'Waveguide', 'Initial PA', 'Final PA', 'PA orientation'}, ...
-    'Location', 'eastoutside', 'FontSize', 8);
-grid on;
-set(gca, 'FontSize', 10);
-end
-
 function sweep_id = get_sweep_id(sweep_type)
-% 给不同实验分配 sweep_id，便于构造不同随机种子
-if strcmp(sweep_type, 'snr')
-    sweep_id = 1;
-elseif strcmp(sweep_type, 'K')
-    sweep_id = 2;
-elseif strcmp(sweep_type, 'N')
-    sweep_id = 3;
-elseif strcmp(sweep_type, 'M')
-    sweep_id = 4;
-elseif strcmp(sweep_type, 'Dy')
-    sweep_id = 8;
-else
-    sweep_id = 9;
-end
+if strcmp(sweep_type,'snr'), sweep_id=1; elseif strcmp(sweep_type,'K'), sweep_id=2; elseif strcmp(sweep_type,'N'), sweep_id=3; elseif strcmp(sweep_type,'M'), sweep_id=4; elseif strcmp(sweep_type,'Dy'), sweep_id=8; else, sweep_id=9; end
 end
