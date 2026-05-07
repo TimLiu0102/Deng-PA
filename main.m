@@ -112,8 +112,8 @@ params.SA_step_W = 0.02;
 params.SA_beta_W = 0.3;
 
 % 9.6) PSO 联合启发式搜索参数
-params.PSO_num_particles = 20;
-params.PSO_max_iter = 250;
+params.PSO_num_particles = 40;
+params.PSO_max_iter = 500;
 params.PSO_w = 0.7;
 params.PSO_c1 = 1.5;
 params.PSO_c2 = 1.5;
@@ -509,7 +509,7 @@ elseif strcmp(scheme_mode, 'pso_joint')
         history.DEBUG_X_cells = {};
     end
     if ~isfield(history, 'X_update_mode')
-        history.X_update_mode = 'none';
+        history.X_update_mode = 'pso_joint';
     end
     if ~isfield(history, 'R_after_W')
         history.R_after_W = [];

@@ -115,6 +115,10 @@ history_pso.phi_cells = cell(params.PSO_max_iter, 1);
 history_pso.W_cells = cell(params.PSO_max_iter, 1);
 
 for iter = 1:params.PSO_max_iter
+    iter_best_score = -inf;
+    iter_best_R_sum = -inf;
+    iter_best_detail = gbest_detail;
+
     for p = 1:params.PSO_num_particles
         state_particle = particles(p).state;
         pbest = particles(p).best_state;
@@ -172,6 +176,12 @@ for iter = 1:params.PSO_max_iter
 
         [score_p, R_sum_p, detail_p] = evaluate_pso_state(params, scene, state_particle);
 
+        if score_p > iter_best_score
+            iter_best_score = score_p;
+            iter_best_R_sum = R_sum_p;
+            iter_best_detail = detail_p;
+        end
+
         particles(p).state = state_particle;
 
         if score_p > particles(p).best_score
@@ -190,12 +200,12 @@ for iter = 1:params.PSO_max_iter
     end
 
     history_pso.R_eff(iter+1,1) = gbest_score;
-    history_pso.R_eff_current(iter+1,1) = gbest_score;
+    history_pso.R_eff_current(iter+1,1) = iter_best_score;
     history_pso.R_eff_best(iter+1,1) = gbest_score;
     history_pso.R_sum(iter+1,1) = gbest_R_sum;
-    history_pso.R_sum_current(iter+1,1) = gbest_R_sum;
+    history_pso.R_sum_current(iter+1,1) = iter_best_R_sum;
     history_pso.R_sum_best(iter+1,1) = gbest_R_sum;
-    history_pso.R_current(iter+1,1) = gbest_score;
+    history_pso.R_current(iter+1,1) = iter_best_score;
     history_pso.R_best(iter+1,1) = gbest_score;
     history_pso.T_X(iter+1,1) = gbest_detail.T_X;
     history_pso.T_theta(iter+1,1) = gbest_detail.T_theta;
