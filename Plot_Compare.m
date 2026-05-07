@@ -156,7 +156,7 @@ if do_convergence
 end
 
 if do_cdf
-    rate_cells = collect_rate_cdf_data(base_params, schemes, MC);
+    rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_pools);
     figure('Name', 'Fig6_CDF', 'Position', [100 100 760 520]);
     draw_rate_cdf(rate_cells, schemes);
     compare_result.cdf.rate_cells = rate_cells;
@@ -174,7 +174,7 @@ if do_default_geometry
 end
 
 if do_final_bar_ab
-    final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC);
+    final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC, user_pos_pools);
     draw_final_bar_ab(final_bar_ab, schemes);
     compare_result.final_bar_ab = final_bar_ab;
 end
@@ -377,13 +377,13 @@ h.R_after_W=[]; h.R_after_angle=[]; h.R_after_X=[]; h.R_after_S=[]; h.R_eff_afte
 h.S_cells={}; h.X_cells={}; h.theta_cells={}; h.phi_cells={}; h.DEBUG_X_cells={}; h.swap_flag=false;
 end
 
-function final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC)
+function final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC, user_pos_pools)
 ab_cases = [0.5 0.3; 0.3 0.18]; ns = numel(schemes);
 Rsum = zeros(2,ns,MC); Reff = zeros(2,ns,MC);
 for i=1:2
     params_ab = base_params; params_ab.a = ab_cases(i,1); params_ab.b = ab_cases(i,2);
     for mc=1:MC
-        user_pos_pool = build_fixed_user_pool(params_ab,1,'final_bar',params_ab.seed+88000+100*i+mc);
+        user_pos_pool = user_pos_pools{mc};
         scene_case = build_scene_with_fixed_users(params_ab,user_pos_pool);
         for s=1:ns
             init_seed_case = params_ab.seed + 20000 + mc;
@@ -554,10 +554,10 @@ function conv_results = run_convergence_cases(base_params, schemes)
 ns=numel(schemes); conv_results=cell(ns,1); scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'conv',base_params.seed+50001));
 for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+1,base_params.seed+100+s,scene_case); conv_results{s}=out.history.R_eff(:); end
 end
-function rate_cells = collect_rate_cdf_data(base_params, schemes, MC)
+function rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_pools)
 ns=numel(schemes); rate_cells=cell(ns,1);
 for mc=1:MC
-scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'cdf',base_params.seed+60000+mc));
+scene_case=build_scene_with_fixed_users(base_params, user_pos_pools{mc});
 for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+mc,base_params.seed+100+s+mc,scene_case); rate_cells{s}=[rate_cells{s}; out.rates_final(:)]; end
 end
 end
