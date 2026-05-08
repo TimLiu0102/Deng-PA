@@ -493,42 +493,7 @@ for ia = 1:size(ab_cases,1)
     figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), 'Position', [100 100 1100 480]);
 
     subplot(1,2,1);
-    [Y3, X3, Z3] = meshgrid(y_grid, x_grid, z_grid);
-    H3_plot = H3 / (max(H3(:)) + eps);
-    iso_outer = 0.05;
-    iso_inner = 0.20;
-
-    fv1 = isosurface(Y3, X3, Z3, H3_plot, iso_outer);
-    if ~isempty(fv1.vertices)
-        p1 = patch(fv1);
-        isonormals(Y3, X3, Z3, H3_plot, p1);
-        set(p1, 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'none', 'FaceAlpha', 0.20);
-        hold on;
-    else
-        hold on;
-    end
-
-    fv2 = isosurface(Y3, X3, Z3, H3_plot, iso_inner);
-    if ~isempty(fv2.vertices)
-        p2 = patch(fv2);
-        isonormals(Y3, X3, Z3, H3_plot, p2);
-        set(p2, 'FaceColor', [0.1 0.3 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.55);
-    end
-
-    plot3(state.X, scene.xW, params_h2.d, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
-    xlabel('y (m)');
-    ylabel('x (m)');
-    zlabel('z (m)');
-    title(sprintf('3D beam shape, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
-    grid on;
-    axis tight;
-    daspect([1 1 0.6]);
-    view(45,25);
-    camlight headlight;
-    camlight right;
-    lighting gouraud;
-    box on;
-    hold off;
+    draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy);
 
     subplot(1,2,2);
     H2_z0 = H3(:,:,1);
@@ -548,6 +513,68 @@ for ia = 1:size(ab_cases,1)
     H2_ab.H3{ia} = H3;
     H2_ab.H2_z0{ia} = H2_z0;
 end
+end
+
+
+function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy)
+pa_pos = [state.X, scene.xW, params_h2.d];
+beam_center = [state.X, scene.xW, 0];
+
+width_scale = 0.8 + 0.45*(params_h2.a + params_h2.b);
+base_radius = 0.10 * min([area_Dx, area_Dy]);
+beam_len = 0.85 * params_h2.d;
+
+[U, V] = meshgrid(linspace(0,2*pi,80), linspace(0,1,80));
+center_z = pa_pos(3) - beam_len * V;
+radius_shape = 0.18 + 0.82 * sin(pi*V).^0.9;
+radius = base_radius * width_scale .* radius_shape;
+
+Y = pa_pos(1) + radius .* cos(U);
+X = pa_pos(2) + radius .* sin(U);
+Z = center_z;
+C = exp(-2.2*(radius./(max(radius(:))+eps)).^2) .* (0.35 + 0.65*V);
+
+surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
+hold on;
+
+for ib = 1:3
+    side = (-1)^(ib);
+    offset_y = side * (0.35 + 0.15*ib) * base_radius;
+    offset_x = (0.18*ib - 0.30) * base_radius;
+    sl_len = beam_len * (0.45 + 0.08*ib);
+    sl_radius0 = base_radius * (0.20 - 0.03*ib);
+
+    [U2, V2] = meshgrid(linspace(0,2*pi,48), linspace(0,1,44));
+    Z2 = pa_pos(3) - 0.18*beam_len - sl_len*V2;
+    r2 = sl_radius0 * (0.45 + 0.55*sin(pi*V2).^1.1);
+    Y2 = pa_pos(1) + offset_y + r2 .* cos(U2);
+    X2 = pa_pos(2) + offset_x + r2 .* sin(U2);
+    C2 = 0.12 + 0.18*(1 - V2);
+    surf(Y2, X2, Z2, C2, 'EdgeColor', 'none', 'FaceAlpha', 0.28);
+end
+
+foot_rx = base_radius * width_scale * 1.05;
+foot_ry = base_radius * width_scale * 0.85;
+theta_fp = linspace(0,2*pi,180);
+Yf = beam_center(1) + foot_ry*cos(theta_fp);
+Xf = beam_center(2) + foot_rx*sin(theta_fp);
+Zf = zeros(size(theta_fp));
+fill3(Yf, Xf, Zf, [0.4 0.8 1.0], 'FaceAlpha', 0.25, 'EdgeColor', [0.2 0.5 0.9], 'LineStyle', '--');
+
+plot3([pa_pos(1), beam_center(1)], [pa_pos(2), beam_center(2)], [pa_pos(3), beam_center(3)], 'k--', 'LineWidth', 1.2);
+plot3(pa_pos(1), pa_pos(2), pa_pos(3), 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
+
+xlabel('y (m)');
+ylabel('x (m)');
+zlabel('z (m)');
+title(sprintf('3D main lobe pattern, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+colormap(jet);
+grid on;
+axis tight;
+daspect([1 1 0.6]);
+view(45,25);
+box on;
+hold off;
 end
 
 function conv_results = run_convergence_cases(base_params, schemes)
