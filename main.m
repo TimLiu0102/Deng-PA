@@ -42,8 +42,8 @@ params.lambda = 0.01;
 params.n_eff = 1.6;
 params.alphaW = 0.01;
 params.alphaL = 0.96;
-params.a = 0.3;
-params.b = 0.18;
+params.a = 0.5;
+params.b = 0.3;
 params.v = 1.1;
 params.n_refr = 1.5;
 % 对应论文自由空间传播常数公式：eta = lambda^2 / (4*pi)
@@ -678,8 +678,8 @@ result.model = model;
 
 %% 第8部分：结果显示方式切换
 % 方式1：新的论文式多方案对比图（默认启用）
-% compare_result = Plot_Compare(params, scene);
-% result.compare_result = compare_result;
+compare_result = Plot_Compare(params, scene);
+result.compare_result = compare_result;
 
 % 方式2：原来的单次仿真结果图
 % Print_and_Plot(params, scene, model, result);

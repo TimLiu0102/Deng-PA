@@ -6,20 +6,20 @@ if nargin < 2 || isempty(base_scene)
     base_scene = Channel_model('build_scene', base_params, [], [], []);
 end
 
-plot_mode = 'debug';   % 'debug' 或 'full'
+plot_mode = 'full';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
-do_snr         = true;
-do_K           = true;
-do_N           = true;
+do_snr         = false;
+do_K           = false;
+do_N           = false;
 do_M           = true;
-do_Dy          = true;
+do_Dy          = false;
 do_convergence = false;
-do_cdf         = true;
-do_final_bar_ab = true;
-do_H2_ab = true;
-do_default_geometry = true;
-do_default_check = true;
+do_cdf         = false;
+do_final_bar_ab = false;
+do_H2_ab = false;
+do_default_geometry = false;
+do_default_check = false;
 
 fprintf('\n================ 多方案对比绘图 ================\n');
 
@@ -58,9 +58,9 @@ else
 end
 
 if strcmp(plot_mode, 'debug')
-    MC = 3;
+    MC = 5;
 else
-    MC = 10;
+    MC = 30;
 end
 
 K_vec = unique(max(K_vec, base_params.K_serv));
