@@ -495,22 +495,24 @@ for ia = 1:size(ab_cases,1)
 
     figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), 'Position', [100 100 1100 480]);
 
+    H2_z0 = H3(:,:,1);
+    levels = [0.05 0.12 0.22 0.35 0.50 0.68 0.82 0.92 1.00];
+
     subplot(1,2,1);
-    draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy);
+    draw_main_lobe_pattern(params_h2, scene, state, x_grid, y_grid, H2_z0);
 
     subplot(1,2,2);
-    H2_z0 = H3(:,:,1);
-    H2_z0_plot = max(H2_z0, 1e-30);
-    imagesc(y_grid, x_grid, H2_z0_plot);
+    H2_z0_norm = H2_z0 / (max(H2_z0(:)) + eps);
+    contourf(y_grid, x_grid, H2_z0_norm, levels, 'LineColor', 'none');
     set(gca, 'YDir', 'normal');
-    set(gca, 'ColorScale', 'log');
     hold on;
     plot(state.X, scene.xW, 'w.', 'MarkerSize', 18);
     hold off;
+    colormap(jet);
     colorbar;
     xlabel('y (m)');
     ylabel('x (m)');
-    title(sprintf('z = 0 plane |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+    title(sprintf('z = 0 plane normalized |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
 
     H2_ab.scene_xW = scene.xW;
     H2_ab.H3{ia} = H3;
@@ -519,38 +521,57 @@ end
 end
 
 
-function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy)
+function draw_main_lobe_pattern(params_h2, scene, state, x_grid, y_grid, H2_z0)
+levels = [0.05 0.12 0.22 0.35 0.50 0.68 0.82 0.92 1.00];
+H2_z0_norm = H2_z0 / (max(H2_z0(:)) + eps);
+
 pa_y = state.X;
 pa_x = scene.xW;
 pa_z = params_h2.d;
 
-[U, V] = meshgrid(linspace(0,2*pi,100), linspace(0,1,100));
+mask = H2_z0_norm >= 0.12;
+if any(mask(:))
+    yv = y_grid(any(mask,1));
+    xv = x_grid(any(mask,2));
+    ay_max = max(0.25, 0.5 * (max(yv) - min(yv)));
+    ax_max = max(0.20, 0.5 * (max(xv) - min(xv)));
+else
+    ay_max = 0.9 + 0.4*params_h2.a;
+    ax_max = 0.7 + 0.3*params_h2.b;
+end
 
-r0 = 0.03;
-r_max = 0.9 + 0.8 * params_h2.a;
-radius = r0 + r_max * V.^0.75;
+[U, T] = meshgrid(linspace(0,2*pi,100), linspace(0,1,120));
+z_top = 0.95 * pa_z;
+z_tip = 0.25 * pa_z;
+Z = z_top - (z_top - z_tip) * T;
 
-Y = pa_y + radius .* cos(U);
-X = pa_x + radius .* sin(U);
-Z = pa_z * (1 - V);
+shape = (T.^0.60) .* ((1 - T).^1.10);
+shape = shape / (max(shape(:)) + eps);
+shape = 0.08 + 0.92 * shape;
 
-C = 0.25 + 0.75 * V;
+Ay = ay_max * shape;
+Ax = ax_max * shape;
+Y = pa_y + Ay .* cos(U);
+X = pa_x + Ax .* sin(U);
 
-surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.92);
+C = 1 - T;
+Cq = levels(1) * ones(size(C));
+for k = 2:numel(levels)
+    idx = C >= levels(k);
+    Cq(idx) = levels(k);
+end
+
+surf(Y, X, Z, Cq, 'EdgeColor', 'none', 'FaceAlpha', 0.92);
 hold on;
 
 plot3([pa_y pa_y], [pa_x pa_x], [pa_z 0], 'k--', 'LineWidth', 1.0);
 plot3(pa_y, pa_x, pa_z, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
 
-foot_U = linspace(0,2*pi,120);
-foot_r = r0 + r_max;
-foot_ry = foot_r;
-foot_rx = foot_r * 0.9;
-foot_y = pa_y + foot_ry * cos(foot_U);
-foot_x = pa_x + foot_rx * sin(foot_U);
-foot_z = zeros(size(foot_U));
-fill3(foot_y, foot_x, foot_z, 0.5 * ones(size(foot_U)), ...
-    'FaceAlpha', 0.18, 'EdgeColor', [0.2 0.5 1.0]);
+foot_u = linspace(0,2*pi,160);
+foot_y = pa_y + ay_max * cos(foot_u);
+foot_x = pa_x + ax_max * sin(foot_u);
+foot_z = zeros(size(foot_u));
+fill3(foot_y, foot_x, foot_z, [0.5 0.7 1.0], 'FaceAlpha', 0.18, 'EdgeColor', [0.2 0.5 1.0]);
 
 xlabel('y (m)');
 ylabel('x (m)');
