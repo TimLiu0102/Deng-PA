@@ -548,71 +548,51 @@ end
 function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy, H3, x_grid, y_grid, z_grid)
 beam_center = [state.X, scene.xW, 0];
 H2_z0 = H3(:,:,1);
-P3 = H3 / max(H3(:));
-P2 = H2_z0 / max(H3(:));
-p_th = 0.10;
+P2 = H2_z0 / max(H2_z0(:));
+p_edge = 0.10;
 color_z_top = 1;
-dx = x_grid(2) - x_grid(1);
-dy = y_grid(2) - y_grid(1);
 
-r_eq = zeros(numel(z_grid),1);
-for iz = 1:numel(z_grid)
-    P = H3(:,:,iz);
-    Pn = P / max(P(:));
-    mask = (Pn >= p_th);
-    A = nnz(mask) * dx * dy;
-    r_eq(iz) = sqrt(A / pi);
-end
-r_eq = smoothdata(r_eq, 'movmean', 3);
+mask0 = (P2 >= p_edge);
+x_support = x_grid(any(mask0,2));
+y_support = y_grid(any(mask0,1));
+rx0 = 0.5 * (max(x_support) - min(x_support));
+ry0 = 0.5 * (max(y_support) - min(y_support));
 
-idx_lower = find(z_grid <= color_z_top);
-z_lower = z_grid(idx_lower);
-r_profile_lower = r_eq(idx_lower);
+z_total = 2 * color_z_top;
+z_mid = color_z_top;
+z_profile = linspace(0, z_total, 121).';
+v = abs((z_profile - z_mid) / color_z_top);
+scale = sqrt(0.15 + 0.85 * v.^2);
+scale = scale / max(scale);
+rx_profile = rx0 * scale;
+ry_profile = ry0 * scale;
 
-[Yg, Xg] = meshgrid(y_grid, x_grid);
-R2 = sqrt((Yg - state.X).^2 + (Xg - scene.xW).^2);
-r_max = max(r_profile_lower);
-r_bins = linspace(0, r_max, 120);
-r_bin_center = 0.5 * (r_bins(1:end-1) + r_bins(2:end));
-p_radial = zeros(numel(r_bin_center),1);
-for ir = 1:numel(r_bin_center)
-    ring_mask = (R2 >= r_bins(ir)) & (R2 < r_bins(ir+1));
-    if nnz(ring_mask) > 0
-        p_radial(ir) = mean(P2(ring_mask));
-    else
-        p_radial(ir) = NaN;
-    end
-end
-p_radial = fillmissing(p_radial, 'nearest');
-p_radial = smoothdata(p_radial, 'movmean', 5);
-c_lower = interp1(r_bin_center, p_radial, r_profile_lower, 'linear', 'extrap');
+c_bottom = 1.0;
+c_outer = p_edge;
+idx_lower = z_profile <= color_z_top;
+idx_upper = z_profile > color_z_top;
+c_lower = linspace(c_bottom, c_outer, nnz(idx_lower)).';
+c_upper = linspace(c_outer, 0.75*c_outer, nnz(idx_upper)).';
+c_profile = [c_lower; c_upper];
 
-z_upper = 2*color_z_top - z_lower(end-1:-1:1);
-r_profile_upper = r_profile_lower(end-1:-1:1);
-c_outer = c_lower(end);
-c_upper = linspace(c_outer, 0.85*c_outer, numel(z_upper)).';
-
-z_profile = [z_lower(:); z_upper(:)];
-r_profile = [r_profile_lower(:); r_profile_upper(:)];
-c_profile = [c_lower(:); c_upper(:)];
-
-theta = linspace(0,2*pi,80);
+theta = linspace(0,2*pi,160);
 [U, Z] = meshgrid(theta, z_profile);
-R = repmat(r_profile, 1, numel(theta));
-Y = state.X + R .* cos(U);
-X = scene.xW + R .* sin(U);
+RX = repmat(rx_profile, 1, numel(theta));
+RY = repmat(ry_profile, 1, numel(theta));
+Y = state.X + RY .* cos(U);
+X = scene.xW + RX .* sin(U);
 C = repmat(c_profile, 1, numel(theta));
 pa_pos = [state.X, scene.xW, z_profile(end)];
 
 surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
+shading interp;
 hold on;
 
-foot_r = r_profile_lower(1);
-foot_rx = 1.05 * foot_r;
-foot_ry = 0.85 * foot_r;
-theta_fp = linspace(0,2*pi,180);
-Yf = beam_center(1) + foot_ry*cos(theta_fp);
-Xf = beam_center(2) + foot_rx*sin(theta_fp);
+foot_rx = rx0;
+foot_ry = ry0;
+theta_fp = linspace(0,2*pi,240);
+Yf = state.X + foot_ry*cos(theta_fp);
+Xf = scene.xW + foot_rx*sin(theta_fp);
 Zf = zeros(size(theta_fp));
 fill3(Yf, Xf, Zf, [0.4 0.8 1.0], 'FaceAlpha', 0.25, 'EdgeColor', [0.2 0.5 0.9], 'LineStyle', '--');
 
@@ -631,7 +611,6 @@ view(45,25);
 box on;
 hold off;
 end
-
 function conv_results = run_convergence_cases(base_params, schemes, MC, user_pos_pools)
 params_conv = base_params;
 params_conv.T_max = 30;
