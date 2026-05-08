@@ -525,14 +525,13 @@ for ia = 1:size(ab_cases,1)
     figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), 'Position', [100 100 1100 480]);
 
     H2_z0 = H3(:,:,1);
-    levels = [0.05 0.12 0.22 0.35 0.50 0.68 0.82 0.92 1.00];
 
     subplot(1,2,1);
     draw_main_lobe_pattern(params_h2, scene, state, x_grid, y_grid, H2_z0);
 
     subplot(1,2,2);
-    H2_z0_norm = H2_z0 / (max(H2_z0(:)) + eps);
-    contourf(y_grid, x_grid, H2_z0_norm, levels, 'LineColor', 'none');
+    H2_z0_plot = max(H2_z0, 1e-30);
+    imagesc(y_grid, x_grid, H2_z0_plot);
     set(gca, 'YDir', 'normal');
     hold on;
     plot(state.X, scene.xW, 'w.', 'MarkerSize', 18);
@@ -551,46 +550,39 @@ end
 
 
 function draw_main_lobe_pattern(params_h2, scene, state, x_grid, y_grid, H2_z0)
-levels = [0.05 0.12 0.22 0.35 0.50 0.68 0.82 0.92 1.00];
 H2_z0_norm = H2_z0 / (max(H2_z0(:)) + eps);
 
 pa_y = state.X;
 pa_x = scene.xW;
 pa_z = params_h2.d;
 
-mask = H2_z0_norm >= 0.12;
+mask = H2_z0_norm >= 0.10;
 if any(mask(:))
     yv = y_grid(any(mask,1));
     xv = x_grid(any(mask,2));
-    ay_max = max(0.25, 0.5 * (max(yv) - min(yv)));
-    ax_max = max(0.20, 0.5 * (max(xv) - min(xv)));
+    ay_max = max(0.30, 0.40 * (max(yv) - min(yv)));
+    ax_max = max(0.22, 0.40 * (max(xv) - min(xv)));
 else
-    ay_max = 0.9 + 0.4*params_h2.a;
-    ax_max = 0.7 + 0.3*params_h2.b;
+    ay_max = 0.70 + 0.35*params_h2.a;
+    ax_max = 0.52 + 0.22*params_h2.b;
 end
 
 [U, T] = meshgrid(linspace(0,2*pi,100), linspace(0,1,120));
-z_top = 0.95 * pa_z;
-z_tip = 0.25 * pa_z;
-Z = z_top - (z_top - z_tip) * T;
+Z = pa_z * (1 - T);
 
-shape = (T.^0.60) .* ((1 - T).^1.10);
+shape = (sin(pi*T)).^0.9 .* (0.55 + 0.75*T);
 shape = shape / (max(shape(:)) + eps);
-shape = 0.08 + 0.92 * shape;
+shape = shape .* (1 - 0.98*T.^2.3);
+shape = max(shape, 0);
 
 Ay = ay_max * shape;
 Ax = ax_max * shape;
 Y = pa_y + Ay .* cos(U);
 X = pa_x + Ax .* sin(U);
 
-C = 1 - T;
-Cq = levels(1) * ones(size(C));
-for k = 2:numel(levels)
-    idx = C >= levels(k);
-    Cq(idx) = levels(k);
-end
+C = 0.15 + 0.85 * T;
 
-surf(Y, X, Z, Cq, 'EdgeColor', 'none', 'FaceAlpha', 0.92);
+surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
 hold on;
 
 plot3([pa_y pa_y], [pa_x pa_x], [pa_z 0], 'k--', 'LineWidth', 1.0);
@@ -600,7 +592,7 @@ foot_u = linspace(0,2*pi,160);
 foot_y = pa_y + ay_max * cos(foot_u);
 foot_x = pa_x + ax_max * sin(foot_u);
 foot_z = zeros(size(foot_u));
-fill3(foot_y, foot_x, foot_z, [0.5 0.7 1.0], 'FaceAlpha', 0.18, 'EdgeColor', [0.2 0.5 1.0]);
+fill3(foot_y, foot_x, foot_z, [0.5 0.7 1.0], 'FaceAlpha', 0.14, 'EdgeColor', [0.2 0.5 1.0]);
 
 xlabel('y (m)');
 ylabel('x (m)');
@@ -667,8 +659,19 @@ end
 function draw_convergence(conv_results, schemes, conv_T_max, conv_tail_scale)
 figure('Name','Fig5_Convergence','Position',[100 100 900 520]);
 
-max_iter = 0;
+max_iter_all = 0;
+for s = 1:numel(schemes)
+    max_iter_all = max(max_iter_all, conv_results{s}.iter_end);
+end
+tail_target_width = 2 * conv_T_max;
+conv_tail_scale_auto = tail_target_width / max(1, max_iter_all - conv_T_max);
+conv_tail_scale_use = conv_tail_scale_auto;
+if conv_tail_scale > 0
+    conv_tail_scale_use = conv_tail_scale_auto;
+end
+
 x_max_plot = conv_T_max;
+h_main = gobjects(numel(schemes),1);
 for s = 1:numel(schemes)
     r = conv_results{s}.R_eff(:);
     iter_end = conv_results{s}.iter_end;
@@ -680,26 +683,42 @@ for s = 1:numel(schemes)
         r_full = r;
     end
 
-    x_plot = compress_iter_axis(x_raw_full, conv_T_max, conv_tail_scale);
-    h = plot(x_plot, r_full, '-o', 'LineWidth', 1.2, 'MarkerSize', 4);
+    x_plot = compress_iter_axis(x_raw_full, conv_T_max, conv_tail_scale_use);
+
+    r_end = r_full(end);
+    tol = max(1e-4, 1e-3 * max(abs(r_end), 1));
+    idx_flat = find(abs(r_full - r_end) <= tol, 1, 'first');
+    if isempty(idx_flat), idx_flat = numel(r_full); end
+
+    h = plot(x_plot(1:idx_flat), r_full(1:idx_flat), '-o', 'LineWidth', 1.2, 'MarkerSize', 4);
     hold on;
+    h_main(s) = h;
 
     if strcmp(conv_results{s}.alg_mode, 'AO') && strcmp(conv_results{s}.init_mode, 'paper')
         plot([-0.6, 0], [0, r(1)], '-', 'LineWidth', 1.2, 'Color', h.Color);
     end
 
-    max_iter = max(max_iter, iter_end);
+    if idx_flat < numel(r_full)
+        if strcmp(conv_results{s}.name, 'SA joint')
+            plot(x_plot(idx_flat:end), r_full(idx_flat:end), '-o', 'LineWidth', 1.2, 'MarkerSize', 3, ...
+                'Color', h.Color, 'HandleVisibility', 'off');
+        else
+            plot(x_plot(idx_flat:end), r_full(idx_flat:end), '-', 'LineWidth', 1.2, ...
+                'Color', h.Color, 'HandleVisibility', 'off');
+        end
+    end
+
     x_max_plot = max(x_max_plot, x_plot(end));
 end
 
 left_ticks = 0:5:conv_T_max;
 right_cand = [50 100 200 300 400 500];
-right_ticks = right_cand(right_cand > conv_T_max & right_cand <= max_iter);
-if max_iter > conv_T_max && isempty(right_ticks)
-    right_ticks = max_iter;
+right_ticks = right_cand(right_cand > conv_T_max & right_cand <= max_iter_all);
+if max_iter_all > conv_T_max && isempty(right_ticks)
+    right_ticks = max_iter_all;
 end
 xtick_raw = unique([left_ticks, right_ticks]);
-xtick_pos = compress_iter_axis(xtick_raw, conv_T_max, conv_tail_scale);
+xtick_pos = compress_iter_axis(xtick_raw, conv_T_max, conv_tail_scale_use);
 
 xticks(xtick_pos);
 xticklabels(string(xtick_raw));
@@ -712,7 +731,7 @@ text(conv_T_max + 1.0, y_text, sprintf('x-axis compressed after %d iterations', 
 xlabel('Iteration index');
 ylabel('Spectral efficiency (bit/s/Hz)');
 title(sprintf('Convergence behavior of different schemes with compressed x-axis'));
-legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
+legend(h_main, {schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
 grid on;
 xlim([-1, x_max_plot + 2]);
 set(gca, 'FontSize', 10);
