@@ -6,18 +6,18 @@ if nargin < 2 || isempty(base_scene)
     base_scene = Channel_model('build_scene', base_params, [], [], []);
 end
 
-plot_mode = 'full';   % 'debug' 或 'full'
+plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
 do_snr         = false;
 do_K           = false;
 do_N           = false;
-do_M           = true;
+do_M           = false;
 do_Dy          = false;
 do_convergence = false;
 do_cdf         = false;
-do_final_bar_ab = false;
-do_H2_ab = false;
+do_final_bar_ab = true;
+do_H2_ab = true;
 do_default_geometry = false;
 do_default_check = false;
 
@@ -58,7 +58,7 @@ else
 end
 
 if strcmp(plot_mode, 'debug')
-    MC = 5;
+    MC = 3;
 else
     MC = 30;
 end
@@ -400,17 +400,46 @@ final_bar_ab.mean_R_eff_ab = squeeze(mean(Reff,3)); final_bar_ab.std_R_eff_ab = 
 end
 
 function draw_final_bar_ab(final_bar_ab, schemes)
-for i=1:2
-    figure('Name',sprintf('Fig_FinalBar_ab_%d',i),'Position',[100 100 820 520]);
-    Y = [final_bar_ab.mean_R_sum_ab(i,:).', final_bar_ab.mean_R_eff_ab(i,:).'];
-    hb = bar(Y); hold on;
-    x1 = hb(1).XEndPoints; x2 = hb(2).XEndPoints;
-    errorbar(x1, Y(:,1), final_bar_ab.std_R_sum_ab(i,:).', 'k.', 'LineWidth', 1.0);
-    errorbar(x2, Y(:,2), final_bar_ab.std_R_eff_ab(i,:).', 'k.', 'LineWidth', 1.0);
-    xticks(1:numel(schemes)); xticklabels({schemes.name}); xtickangle(30);
-    legend({'R_{sum}','R_{eff}'},'Location','northwest');
-    title(sprintf('Final performance, a=%.2f, b=%.2f', final_bar_ab.ab_cases(i,1), final_bar_ab.ab_cases(i,2)));
-    ylabel('Rate (bit/s/Hz)'); grid on;
+for i = 1:2
+    figure('Name', sprintf('Fig_FinalBar_ab_%d', i), ...
+        'Position', [100 100 900 520]);
+
+    Y = [final_bar_ab.mean_R_sum_ab(i,:).', ...
+         final_bar_ab.mean_R_eff_ab(i,:).'];
+
+    hb = bar(Y, 'grouped', 'BarWidth', 0.72);
+    hold on;
+
+    hb(1).FaceColor = [0.00 0.45 0.74];
+    hb(2).FaceColor = [0.85 0.33 0.10];
+    hb(1).EdgeColor = 'none';
+    hb(2).EdgeColor = 'none';
+
+    xticks(1:numel(schemes));
+    xticklabels({schemes.name});
+    xtickangle(25);
+
+    ylabel('Rate (bit/s/Hz)');
+    title(sprintf('Final performance, a=%.2f, b=%.2f', ...
+        final_bar_ab.ab_cases(i,1), final_bar_ab.ab_cases(i,2)));
+
+    legend({'R_{sum}', 'R_{eff}'}, ...
+        'Location', 'northoutside', ...
+        'Orientation', 'horizontal');
+
+    ymax = max(Y(:));
+    ylim([0, 1.15 * ymax]);
+
+    grid on;
+    ax = gca;
+    ax.XGrid = 'off';
+    ax.YGrid = 'on';
+    ax.GridAlpha = 0.18;
+    ax.LineWidth = 1.0;
+    ax.FontSize = 11;
+    box on;
+
+    hold off;
 end
 end
 
@@ -522,7 +551,7 @@ beam_center = [state.X, scene.xW, 0];
 
 width_scale = 0.8 + 0.45*(params_h2.a + params_h2.b);
 base_radius = 0.10 * min([area_Dx, area_Dy]);
-beam_len = 0.85 * params_h2.d;
+beam_len = params_h2.d;
 
 [U, V] = meshgrid(linspace(0,2*pi,80), linspace(0,1,80));
 center_z = pa_pos(3) - beam_len * V;
