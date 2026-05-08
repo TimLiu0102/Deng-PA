@@ -14,7 +14,7 @@ do_K           = false;
 do_N           = false;
 do_M           = false;
 do_Dy          = false;
-do_convergence = false;
+do_convergence = true;
 do_cdf         = false;
 do_final_bar_ab = true;
 do_H2_ab = true;
@@ -522,7 +522,7 @@ for ia = 1:size(ab_cases,1)
     figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), 'Position', [100 100 1100 480]);
 
     subplot(1,2,1);
-    draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy);
+    draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy, H3, x_grid, y_grid, z_grid);
 
     subplot(1,2,2);
     H2_z0 = H3(:,:,1);
@@ -545,45 +545,53 @@ end
 end
 
 
-function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy)
-pa_pos = [state.X, scene.xW, params_h2.d];
+function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy, H3, x_grid, y_grid, z_grid)
 beam_center = [state.X, scene.xW, 0];
+P3 = H3 / max(H3(:));
+p_th = 0.10;
+color_z_top = 1;
+dx = x_grid(2) - x_grid(1);
+dy = y_grid(2) - y_grid(1);
 
-width_scale = 0.8 + 0.45*(params_h2.a + params_h2.b);
-base_radius = 0.10 * min([area_Dx, area_Dy]);
-beam_len = params_h2.d;
+r_eq = zeros(numel(z_grid),1);
+c_z = zeros(numel(z_grid),1);
+for iz = 1:numel(z_grid)
+    P = P3(:,:,iz);
+    mask = (P >= p_th);
+    A = nnz(mask) * dx * dy;
+    r_eq(iz) = sqrt(A / pi);
+    if nnz(mask) > 0, c_z(iz) = mean(P(mask)); else, c_z(iz) = 0; end
+end
+r_eq = smoothdata(r_eq, 'movmean', 3);
 
-[U, V] = meshgrid(linspace(0,2*pi,80), linspace(0,1,80));
-center_z = pa_pos(3) - beam_len * V;
-radius_shape = 0.18 + 0.82 * sin(pi*V).^0.9;
-radius = base_radius * width_scale .* radius_shape;
+idx_lower = find(z_grid <= color_z_top);
+z_lower = z_grid(idx_lower);
+r_profile_lower = r_eq(idx_lower);
+c_lower = c_z(idx_lower);
 
-Y = pa_pos(1) + radius .* cos(U);
-X = pa_pos(2) + radius .* sin(U);
-Z = center_z;
-C = exp(-2.2*(radius./(max(radius(:))+eps)).^2) .* (0.35 + 0.65*V);
+z_upper = 2*color_z_top - z_lower(end-1:-1:1);
+r_profile_upper = r_profile_lower(end-1:-1:1);
+c_upper_base = c_lower(end);
+c_upper = linspace(c_upper_base, min(c_upper_base*1.15, 1), numel(z_upper)).';
+
+z_profile = [z_lower(:); z_upper(:)];
+r_profile = [r_profile_lower(:); r_profile_upper(:)];
+c_profile = [c_lower(:); c_upper(:)];
+
+theta = linspace(0,2*pi,80);
+[U, Z] = meshgrid(theta, z_profile);
+R = repmat(r_profile, 1, numel(theta));
+Y = state.X + R .* cos(U);
+X = scene.xW + R .* sin(U);
+C = repmat(c_profile, 1, numel(theta));
+pa_pos = [state.X, scene.xW, z_profile(end)];
 
 surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
 hold on;
 
-for ib = 1:3
-    side = (-1)^(ib);
-    offset_y = side * (0.35 + 0.15*ib) * base_radius;
-    offset_x = (0.18*ib - 0.30) * base_radius;
-    sl_len = beam_len * (0.45 + 0.08*ib);
-    sl_radius0 = base_radius * (0.20 - 0.03*ib);
-
-    [U2, V2] = meshgrid(linspace(0,2*pi,48), linspace(0,1,44));
-    Z2 = pa_pos(3) - 0.18*beam_len - sl_len*V2;
-    r2 = sl_radius0 * (0.45 + 0.55*sin(pi*V2).^1.1);
-    Y2 = pa_pos(1) + offset_y + r2 .* cos(U2);
-    X2 = pa_pos(2) + offset_x + r2 .* sin(U2);
-    C2 = 0.12 + 0.18*(1 - V2);
-    surf(Y2, X2, Z2, C2, 'EdgeColor', 'none', 'FaceAlpha', 0.28);
-end
-
-foot_rx = base_radius * width_scale * 1.05;
-foot_ry = base_radius * width_scale * 0.85;
+foot_r = r_profile_lower(1);
+foot_rx = 1.05 * foot_r;
+foot_ry = 0.85 * foot_r;
 theta_fp = linspace(0,2*pi,180);
 Yf = beam_center(1) + foot_ry*cos(theta_fp);
 Xf = beam_center(2) + foot_rx*sin(theta_fp);
@@ -607,8 +615,19 @@ hold off;
 end
 
 function conv_results = run_convergence_cases(base_params, schemes)
-ns=numel(schemes); conv_results=cell(ns,1); scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'conv',base_params.seed+50001));
-for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+1,base_params.seed+100+s,scene_case); conv_results{s}=out.history.R_eff(:); end
+params_conv = base_params;
+params_conv.T_max = 20;
+params_conv.SA_max_iter = 5000;
+ns=numel(schemes); conv_results=struct('name',cell(ns,1),'alg_mode',cell(ns,1),'R_eff',cell(ns,1),'T_max',cell(ns,1),'SA_max_iter',cell(ns,1));
+scene_case=build_scene_with_fixed_users(params_conv, build_fixed_user_pool(params_conv,1,'conv',params_conv.seed+50001));
+for s=1:ns
+out=run_one_case(params_conv,schemes(s).init_mode,schemes(s).alg_mode,params_conv.seed+1,params_conv.seed+100+s,scene_case);
+conv_results(s).name = schemes(s).name;
+conv_results(s).alg_mode = schemes(s).alg_mode;
+conv_results(s).R_eff = out.history.R_eff(:);
+conv_results(s).T_max = params_conv.T_max;
+conv_results(s).SA_max_iter = params_conv.SA_max_iter;
+end
 end
 function rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_pools)
 ns=numel(schemes); rate_cells=cell(ns,1);
@@ -631,8 +650,36 @@ xlabel(x_label_text); ylabel('Average effective spectral efficiency (bit/s/Hz)')
 legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
 function draw_convergence(conv_results, schemes)
-figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 820 520]); for s=1:numel(schemes), plot(conv_results{s},'-o','LineWidth',1.2); hold on; end
-xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence'); legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
+break_iter = 20; x_end_real = 5000; x_end_plot = 5000; x_break_plot = x_end_plot/3;
+figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 1100 560]);
+for s=1:numel(conv_results)
+    r = conv_results(s).R_eff(:);
+    if strcmp(conv_results(s).alg_mode,'SA_joint')
+        if numel(r) == conv_results(s).SA_max_iter + 1, x_real = (0:conv_results(s).SA_max_iter).';
+        elseif numel(r) == conv_results(s).SA_max_iter, x_real = (1:conv_results(s).SA_max_iter).';
+        else, x_real = round(linspace(0, conv_results(s).SA_max_iter, numel(r))).'; end
+    else
+        x_real = (0:numel(r)-1).';
+    end
+    [r_best, idx_best] = max(r);
+    x_real_plot = [x_real(1:idx_best); x_end_real];
+    r_plot = [r(1:idx_best); r_best];
+    plot(compress_conv_x(x_real_plot, break_iter, x_break_plot, x_end_real, x_end_plot), r_plot, '-o', 'LineWidth', 1.6, 'MarkerSize', 6, 'MarkerFaceColor', 'none'); hold on;
+end
+y_all = cell2mat(arrayfun(@(s) s.R_eff(:), conv_results, 'UniformOutput', false));
+r_min = min(y_all); r_max = max(y_all); pad = max(1e-6, 0.08*(r_max-r_min)); ylim([r_min-pad, r_max+pad]);
+yl = ylim; plot([x_break_plot x_break_plot], yl, 'k--', 'LineWidth', 1.2);
+text(x_break_plot + 80, yl(1) + 0.08*(yl(2)-yl(1)), 'x-axis compressed after 20 iterations', 'FontSize', 11);
+tick_real = [0 5 10 15 20 500 1000 1500 2000 2500 3000 3500 4000 4500 5000];
+xticks(compress_conv_x(tick_real, break_iter, x_break_plot, x_end_real, x_end_plot)); xticklabels(string(tick_real));
+legend({conv_results.name},'Location','northeastoutside','FontSize',9);
+xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence behavior of different schemes with compressed x-axis');
+grid on; box on; set(gca,'FontSize',10);
+end
+function x_plot = compress_conv_x(x_real, break_iter, x_break_plot, x_end_real, x_end_plot)
+x_real = x_real(:); x_plot = zeros(size(x_real)); idx = x_real <= break_iter;
+x_plot(idx) = x_real(idx) / break_iter * x_break_plot;
+x_plot(~idx) = x_break_plot + (x_real(~idx) - break_iter) / (x_end_real - break_iter) * (x_end_plot - x_break_plot);
 end
 function draw_rate_cdf(rate_cells, schemes)
 for s=1:numel(schemes), r=sort(rate_cells{s}(:)); F=(1:numel(r))/numel(r); plot(r,F,'LineWidth',1.2); hold on; end
