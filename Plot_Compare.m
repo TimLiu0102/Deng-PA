@@ -561,26 +561,12 @@ radius = base_radius * width_scale .* radius_shape;
 Y = pa_pos(1) + radius .* cos(U);
 X = pa_pos(2) + radius .* sin(U);
 Z = center_z;
-C = exp(-2.2*(radius./(max(radius(:))+eps)).^2) .* (0.35 + 0.65*V);
+color_z_top = 1;
+V_color = min(V * beam_len / max(beam_len - color_z_top, eps), 1);
+C = exp(-2.2*(radius./(max(radius(:))+eps)).^2) .* (0.35 + 0.65*V_color);
 
 surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
 hold on;
-
-for ib = 1:3
-    side = (-1)^(ib);
-    offset_y = side * (0.35 + 0.15*ib) * base_radius;
-    offset_x = (0.18*ib - 0.30) * base_radius;
-    sl_len = beam_len * (0.45 + 0.08*ib);
-    sl_radius0 = base_radius * (0.20 - 0.03*ib);
-
-    [U2, V2] = meshgrid(linspace(0,2*pi,48), linspace(0,1,44));
-    Z2 = pa_pos(3) - 0.18*beam_len - sl_len*V2;
-    r2 = sl_radius0 * (0.45 + 0.55*sin(pi*V2).^1.1);
-    Y2 = pa_pos(1) + offset_y + r2 .* cos(U2);
-    X2 = pa_pos(2) + offset_x + r2 .* sin(U2);
-    C2 = 0.12 + 0.18*(1 - V2);
-    surf(Y2, X2, Z2, C2, 'EdgeColor', 'none', 'FaceAlpha', 0.28);
-end
 
 foot_rx = base_radius * width_scale * 1.05;
 foot_ry = base_radius * width_scale * 0.85;
