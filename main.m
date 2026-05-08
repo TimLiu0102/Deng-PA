@@ -64,7 +64,7 @@ params.T_f = 5;             % frame duration, s
 params.v_PA = 10;            % PA moving speed, m/s
 params.omega_theta = 300;   % elevation rotation speed, rad/s
 params.omega_phi = 300;     % azimuth rotation speed, rad/s
-params.rho = 1.5;
+params.rho = 1;
 
 % 5) WMMSE 参数
 params.I_W = 40;
