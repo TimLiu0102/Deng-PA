@@ -14,7 +14,7 @@ do_K           = false;
 do_N           = false;
 do_M           = false;
 do_Dy          = false;
-do_convergence = false;
+do_convergence = true;
 do_cdf         = false;
 do_final_bar_ab = true;
 do_H2_ab = true;
@@ -615,8 +615,19 @@ hold off;
 end
 
 function conv_results = run_convergence_cases(base_params, schemes)
-ns=numel(schemes); conv_results=cell(ns,1); scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'conv',base_params.seed+50001));
-for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+1,base_params.seed+100+s,scene_case); conv_results{s}=out.history.R_eff(:); end
+params_conv = base_params;
+params_conv.T_max = 20;
+params_conv.SA_max_iter = 5000;
+ns=numel(schemes); conv_results=struct('name',cell(ns,1),'alg_mode',cell(ns,1),'R_eff',cell(ns,1),'T_max',cell(ns,1),'SA_max_iter',cell(ns,1));
+scene_case=build_scene_with_fixed_users(params_conv, build_fixed_user_pool(params_conv,1,'conv',params_conv.seed+50001));
+for s=1:ns
+out=run_one_case(params_conv,schemes(s).init_mode,schemes(s).alg_mode,params_conv.seed+1,params_conv.seed+100+s,scene_case);
+conv_results(s).name = schemes(s).name;
+conv_results(s).alg_mode = schemes(s).alg_mode;
+conv_results(s).R_eff = out.history.R_eff(:);
+conv_results(s).T_max = params_conv.T_max;
+conv_results(s).SA_max_iter = params_conv.SA_max_iter;
+end
 end
 function rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_pools)
 ns=numel(schemes); rate_cells=cell(ns,1);
@@ -639,8 +650,36 @@ xlabel(x_label_text); ylabel('Average effective spectral efficiency (bit/s/Hz)')
 legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
 function draw_convergence(conv_results, schemes)
-figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 820 520]); for s=1:numel(schemes), plot(conv_results{s},'-o','LineWidth',1.2); hold on; end
-xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence'); legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
+break_iter = 20; x_end_real = 5000; x_end_plot = 5000; x_break_plot = x_end_plot/3;
+figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 1100 560]);
+for s=1:numel(conv_results)
+    r = conv_results(s).R_eff(:);
+    if strcmp(conv_results(s).alg_mode,'SA_joint')
+        if numel(r) == conv_results(s).SA_max_iter + 1, x_real = (0:conv_results(s).SA_max_iter).';
+        elseif numel(r) == conv_results(s).SA_max_iter, x_real = (1:conv_results(s).SA_max_iter).';
+        else, x_real = round(linspace(0, conv_results(s).SA_max_iter, numel(r))).'; end
+    else
+        x_real = (0:numel(r)-1).';
+    end
+    [r_best, idx_best] = max(r);
+    x_real_plot = [x_real(1:idx_best); x_end_real];
+    r_plot = [r(1:idx_best); r_best];
+    plot(compress_conv_x(x_real_plot, break_iter, x_break_plot, x_end_real, x_end_plot), r_plot, '-o', 'LineWidth', 1.6, 'MarkerSize', 6, 'MarkerFaceColor', 'none'); hold on;
+end
+y_all = cell2mat(arrayfun(@(s) s.R_eff(:), conv_results, 'UniformOutput', false));
+r_min = min(y_all); r_max = max(y_all); pad = max(1e-6, 0.08*(r_max-r_min)); ylim([r_min-pad, r_max+pad]);
+yl = ylim; plot([x_break_plot x_break_plot], yl, 'k--', 'LineWidth', 1.2);
+text(x_break_plot + 80, yl(1) + 0.08*(yl(2)-yl(1)), 'x-axis compressed after 20 iterations', 'FontSize', 11);
+tick_real = [0 5 10 15 20 500 1000 1500 2000 2500 3000 3500 4000 4500 5000];
+xticks(compress_conv_x(tick_real, break_iter, x_break_plot, x_end_real, x_end_plot)); xticklabels(string(tick_real));
+legend({conv_results.name},'Location','northeastoutside','FontSize',9);
+xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence behavior of different schemes with compressed x-axis');
+grid on; box on; set(gca,'FontSize',10);
+end
+function x_plot = compress_conv_x(x_real, break_iter, x_break_plot, x_end_real, x_end_plot)
+x_real = x_real(:); x_plot = zeros(size(x_real)); idx = x_real <= break_iter;
+x_plot(idx) = x_real(idx) / break_iter * x_break_plot;
+x_plot(~idx) = x_break_plot + (x_real(~idx) - break_iter) / (x_end_real - break_iter) * (x_end_plot - x_break_plot);
 end
 function draw_rate_cdf(rate_cells, schemes)
 for s=1:numel(schemes), r=sort(rate_cells{s}(:)); F=(1:numel(r))/numel(r); plot(r,F,'LineWidth',1.2); hold on; end
