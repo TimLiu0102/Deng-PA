@@ -548,49 +548,42 @@ end
 
 function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy, H3, x_grid, y_grid, z_grid)
 beam_center = [state.X, scene.xW, 0];
-H2_z0 = H3(:,:,1);
-P2 = H2_z0 / max(H2_z0(:));
+P3 = H3 / max(H3(:));
 p_edge = 0.10;
-
-mask0 = (P2 >= p_edge);
-x_support = x_grid(any(mask0,2));
-y_support = y_grid(any(mask0,1));
-rx0 = 0.5 * (max(x_support) - min(x_support));
-ry0 = 0.5 * (max(y_support) - min(y_support));
-
-z_total = params_h2.d;
-z_mid = params_h2.d / 2;
-z_profile = linspace(0, z_total, 181).';
-z_norm = z_profile / params_h2.d;
-scale = sqrt(max(0, 1 - z_norm.^1.4));
-scale = 0.08 + 0.92 * scale;
-rx_profile = rx0 * scale;
-ry_profile = ry0 * scale;
-
-c_side_bottom = p_edge;
-c_side_top = 0.03;
-c_profile = linspace(c_side_bottom, c_side_top, numel(z_profile)).';
-
+z_profile = z_grid(:);
 theta = linspace(0,2*pi,160);
-[U, Z] = meshgrid(theta, z_profile);
-RX = repmat(rx_profile, 1, numel(theta));
-RY = repmat(ry_profile, 1, numel(theta));
-Y = state.X + RY .* cos(U);
-X = scene.xW + RX .* sin(U);
-C = repmat(c_profile, 1, numel(theta));
-pa_pos = [state.X, scene.xW, z_profile(end)];
+rho = linspace(0,1,60);
+[RR, TT] = meshgrid(rho, theta);
 
-surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
-shading interp;
+rx_profile = zeros(numel(z_profile),1);
+ry_profile = zeros(numel(z_profile),1);
+for iz = 1:numel(z_profile)
+    P2 = P3(:,:,iz);
+    mask = (P2 >= p_edge);
+    x_support = x_grid(any(mask,2));
+    y_support = y_grid(any(mask,1));
+    if isempty(x_support) || isempty(y_support)
+        rx_profile(iz) = 0;
+        ry_profile(iz) = 0;
+    else
+        rx_profile(iz) = 0.5 * (max(x_support) - min(x_support));
+        ry_profile(iz) = 0.5 * (max(y_support) - min(y_support));
+    end
+end
+rx0 = rx_profile(1);
+ry0 = ry_profile(1);
+
 hold on;
-rho = linspace(0,1,80);
-theta_disk = linspace(0,2*pi,160);
-[RR, TT] = meshgrid(rho, theta_disk);
-Ydisk = state.X + ry0 * RR.' .* cos(TT.');
-Xdisk = scene.xW + rx0 * RR.' .* sin(TT.');
-Zdisk = zeros(size(Xdisk));
-Cdisk = 1 - 0.90 * RR.';
-surf(Ydisk, Xdisk, Zdisk, Cdisk, 'EdgeColor', 'none', 'FaceAlpha', 0.92);
+for iz = 1:numel(z_profile)
+    rx = rx_profile(iz);
+    ry = ry_profile(iz);
+    if rx <= 0 || ry <= 0, continue; end
+    Y = state.X + ry * RR .* cos(TT);
+    X = scene.xW + rx * RR .* sin(TT);
+    Z = z_profile(iz) * ones(size(X));
+    C = interp2(y_grid, x_grid, P3(:,:,iz), Y, X, 'linear', 0);
+    surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
+end
 shading interp;
 
 foot_rx = rx0;
@@ -601,6 +594,7 @@ Xf = scene.xW + foot_rx*sin(theta_fp);
 Zf = zeros(size(theta_fp));
 fill3(Yf, Xf, Zf, [0.4 0.8 1.0], 'FaceAlpha', 0.25, 'EdgeColor', [0.2 0.5 0.9], 'LineStyle', '--');
 
+pa_pos = [state.X, scene.xW, params_h2.d];
 plot3([pa_pos(1), beam_center(1)], [pa_pos(2), beam_center(2)], [pa_pos(3), beam_center(3)], 'k--', 'LineWidth', 1.2);
 plot3(pa_pos(1), pa_pos(2), pa_pos(3), 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
 
