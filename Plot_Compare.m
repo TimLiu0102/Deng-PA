@@ -15,6 +15,7 @@ do_N           = false;
 do_M           = true;
 do_Dy          = false;
 do_convergence = false;
+conv_T_max     = 25;
 do_cdf         = false;
 do_final_bar_ab = false;
 do_H2_ab = false;
@@ -150,8 +151,8 @@ if do_Dy
 end
 
 if do_convergence
-    conv_results = run_convergence_cases(base_params, schemes);
-    draw_convergence(conv_results, schemes);
+    conv_results = run_convergence_cases(base_params, schemes, conv_T_max);
+    draw_convergence(conv_results, schemes, conv_T_max);
     compare_result.convergence = conv_results;
 end
 
@@ -577,9 +578,34 @@ box on;
 hold off;
 end
 
-function conv_results = run_convergence_cases(base_params, schemes)
-ns=numel(schemes); conv_results=cell(ns,1); scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'conv',base_params.seed+50001));
-for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+1,base_params.seed+100+s,scene_case); conv_results{s}=out.history.R_eff(:); end
+function conv_results = run_convergence_cases(base_params, schemes, conv_T_max)
+params_conv = base_params;
+params_conv.T_max = conv_T_max;
+
+ns = numel(schemes);
+conv_results = cell(ns,1);
+
+user_pos_pool = build_fixed_user_pool(params_conv, 1, 'conv', params_conv.seed + 50001);
+scene_case = build_scene_with_fixed_users(params_conv, user_pos_pool);
+
+for s = 1:ns
+    out = run_one_case(params_conv, ...
+        schemes(s).init_mode, ...
+        schemes(s).alg_mode, ...
+        params_conv.seed + 1, ...
+        params_conv.seed + 100 + s, ...
+        scene_case);
+
+    r = out.history.R_eff(:);
+
+    if numel(r) < conv_T_max + 1
+        r = [r; r(end) * ones(conv_T_max + 1 - numel(r), 1)];
+    elseif numel(r) > conv_T_max + 1
+        r = r(1:conv_T_max + 1);
+    end
+
+    conv_results{s} = r;
+end
 end
 function rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_pools)
 ns=numel(schemes); rate_cells=cell(ns,1);
@@ -601,9 +627,24 @@ for s=1:numel(schemes), plot(x_vec,mean_R(:,s),'-o','LineWidth',1.4,'MarkerSize'
 xlabel(x_label_text); ylabel('Average effective spectral efficiency (bit/s/Hz)'); title(title_text,'FontSize',11);
 legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
-function draw_convergence(conv_results, schemes)
-figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 820 520]); for s=1:numel(schemes), plot(conv_results{s},'-o','LineWidth',1.2); hold on; end
-xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence'); legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
+function draw_convergence(conv_results, schemes, conv_T_max)
+figure('Name','Fig5_Convergence','Position',[100 100 820 520]);
+
+x = 0:conv_T_max;
+
+for s = 1:numel(schemes)
+    r = conv_results{s};
+    plot(x, r, '-o', 'LineWidth', 1.2, 'MarkerSize', 4);
+    hold on;
+end
+
+xlabel('Outer iteration index');
+ylabel('R_{eff} (bit/s/Hz)');
+title('Convergence');
+legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
+grid on;
+xlim([0 conv_T_max]);
+set(gca, 'FontSize', 10);
 end
 function draw_rate_cdf(rate_cells, schemes)
 for s=1:numel(schemes), r=sort(rate_cells{s}(:)); F=(1:numel(r))/numel(r); plot(r,F,'LineWidth',1.2); hold on; end
