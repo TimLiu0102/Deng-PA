@@ -547,32 +547,50 @@ end
 
 function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy, H3, x_grid, y_grid, z_grid)
 beam_center = [state.X, scene.xW, 0];
+H2_z0 = H3(:,:,1);
 P3 = H3 / max(H3(:));
+P2 = H2_z0 / max(H3(:));
 p_th = 0.10;
 color_z_top = 1;
 dx = x_grid(2) - x_grid(1);
 dy = y_grid(2) - y_grid(1);
 
 r_eq = zeros(numel(z_grid),1);
-c_z = zeros(numel(z_grid),1);
 for iz = 1:numel(z_grid)
-    P = P3(:,:,iz);
-    mask = (P >= p_th);
+    P = H3(:,:,iz);
+    Pn = P / max(P(:));
+    mask = (Pn >= p_th);
     A = nnz(mask) * dx * dy;
     r_eq(iz) = sqrt(A / pi);
-    if nnz(mask) > 0, c_z(iz) = mean(P(mask)); else, c_z(iz) = 0; end
 end
 r_eq = smoothdata(r_eq, 'movmean', 3);
 
 idx_lower = find(z_grid <= color_z_top);
 z_lower = z_grid(idx_lower);
 r_profile_lower = r_eq(idx_lower);
-c_lower = c_z(idx_lower);
+
+[Yg, Xg] = meshgrid(y_grid, x_grid);
+R2 = sqrt((Yg - state.X).^2 + (Xg - scene.xW).^2);
+r_max = max(r_profile_lower);
+r_bins = linspace(0, r_max, 120);
+r_bin_center = 0.5 * (r_bins(1:end-1) + r_bins(2:end));
+p_radial = zeros(numel(r_bin_center),1);
+for ir = 1:numel(r_bin_center)
+    ring_mask = (R2 >= r_bins(ir)) & (R2 < r_bins(ir+1));
+    if nnz(ring_mask) > 0
+        p_radial(ir) = mean(P2(ring_mask));
+    else
+        p_radial(ir) = NaN;
+    end
+end
+p_radial = fillmissing(p_radial, 'nearest');
+p_radial = smoothdata(p_radial, 'movmean', 5);
+c_lower = interp1(r_bin_center, p_radial, r_profile_lower, 'linear', 'extrap');
 
 z_upper = 2*color_z_top - z_lower(end-1:-1:1);
 r_profile_upper = r_profile_lower(end-1:-1:1);
-c_upper_base = c_lower(end);
-c_upper = linspace(c_upper_base, min(c_upper_base*1.15, 1), numel(z_upper)).';
+c_outer = c_lower(end);
+c_upper = linspace(c_outer, 0.85*c_outer, numel(z_upper)).';
 
 z_profile = [z_lower(:); z_upper(:)];
 r_profile = [r_profile_lower(:); r_profile_upper(:)];
