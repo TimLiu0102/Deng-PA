@@ -403,17 +403,46 @@ final_bar_ab.mean_R_eff_ab = squeeze(mean(Reff,3)); final_bar_ab.std_R_eff_ab = 
 end
 
 function draw_final_bar_ab(final_bar_ab, schemes)
-for i=1:2
-    figure('Name',sprintf('Fig_FinalBar_ab_%d',i),'Position',[100 100 820 520]);
-    Y = [final_bar_ab.mean_R_sum_ab(i,:).', final_bar_ab.mean_R_eff_ab(i,:).'];
-    hb = bar(Y); hold on;
-    x1 = hb(1).XEndPoints; x2 = hb(2).XEndPoints;
-    errorbar(x1, Y(:,1), final_bar_ab.std_R_sum_ab(i,:).', 'k.', 'LineWidth', 1.0);
-    errorbar(x2, Y(:,2), final_bar_ab.std_R_eff_ab(i,:).', 'k.', 'LineWidth', 1.0);
-    xticks(1:numel(schemes)); xticklabels({schemes.name}); xtickangle(30);
-    legend({'R_{sum}','R_{eff}'},'Location','northwest');
-    title(sprintf('Final performance, a=%.2f, b=%.2f', final_bar_ab.ab_cases(i,1), final_bar_ab.ab_cases(i,2)));
-    ylabel('Rate (bit/s/Hz)'); grid on;
+for i = 1:2
+    figure('Name', sprintf('Fig_FinalBar_ab_%d', i), ...
+        'Position', [100 100 900 520]);
+
+    Y = [final_bar_ab.mean_R_sum_ab(i,:).', ...
+         final_bar_ab.mean_R_eff_ab(i,:).'];
+
+    hb = bar(Y, 'grouped', 'BarWidth', 0.72);
+    hold on;
+
+    hb(1).FaceColor = [0.00 0.45 0.74];
+    hb(2).FaceColor = [0.85 0.33 0.10];
+    hb(1).EdgeColor = 'none';
+    hb(2).EdgeColor = 'none';
+
+    xticks(1:numel(schemes));
+    xticklabels({schemes.name});
+    xtickangle(25);
+
+    ylabel('Rate (bit/s/Hz)');
+    title(sprintf('Final performance, a=%.2f, b=%.2f', ...
+        final_bar_ab.ab_cases(i,1), final_bar_ab.ab_cases(i,2)));
+
+    legend({'R_{sum}', 'R_{eff}'}, ...
+        'Location', 'northoutside', ...
+        'Orientation', 'horizontal');
+
+    ymax = max(Y(:));
+    ylim([0, 1.15 * ymax]);
+
+    grid on;
+    ax = gca;
+    ax.XGrid = 'off';
+    ax.YGrid = 'on';
+    ax.GridAlpha = 0.18;
+    ax.LineWidth = 1.0;
+    ax.FontSize = 11;
+    box on;
+
+    hold off;
 end
 end
 
