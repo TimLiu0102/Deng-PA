@@ -16,6 +16,8 @@ do_M           = false;
 do_Dy          = false;
 do_convergence = false;
 conv_T_max     = 25;
+conv_run_T_max = 25;
+conv_tail_scale = 0.10;
 do_cdf         = false;
 do_final_bar_ab = false;
 do_H2_ab = false;
@@ -151,8 +153,8 @@ if do_Dy
 end
 
 if do_convergence
-    conv_results = run_convergence_cases(base_params, schemes, conv_T_max);
-    draw_convergence(conv_results, schemes, conv_T_max);
+    conv_results = run_convergence_cases(base_params, schemes, conv_run_T_max);
+    draw_convergence(conv_results, schemes, conv_T_max, conv_tail_scale);
     compare_result.convergence = conv_results;
 end
 
@@ -563,12 +565,12 @@ view(45,25);
 box on;
 hold off;
 end
-function conv_results = run_convergence_cases(base_params, schemes, conv_T_max)
-params_conv = base_params;
-params_conv.T_max = conv_T_max;
-
+function conv_results = run_convergence_cases(base_params, schemes, conv_run_T_max)
 ns = numel(schemes);
 conv_results = cell(ns,1);
+
+params_conv = base_params;
+params_conv.T_max = conv_run_T_max;
 
 user_pos_pool = build_fixed_user_pool(params_conv, 1, 'conv', params_conv.seed + 50001);
 scene_case = build_scene_with_fixed_users(params_conv, user_pos_pool);
@@ -582,14 +584,14 @@ for s = 1:ns
         scene_case);
 
     r = out.history.R_eff(:);
+    iter_end = numel(r) - 1;
 
-    if numel(r) < conv_T_max + 1
-        r = [r; r(end) * ones(conv_T_max + 1 - numel(r), 1)];
-    elseif numel(r) > conv_T_max + 1
-        r = r(1:conv_T_max + 1);
-    end
-
-    conv_results{s} = r;
+    conv_results{s} = struct();
+    conv_results{s}.name = schemes(s).name;
+    conv_results{s}.init_mode = schemes(s).init_mode;
+    conv_results{s}.alg_mode = schemes(s).alg_mode;
+    conv_results{s}.R_eff = r;
+    conv_results{s}.iter_end = iter_end;
 end
 end
 function rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_pools)
@@ -612,24 +614,64 @@ for s=1:numel(schemes), plot(x_vec,mean_R(:,s),'-o','LineWidth',1.4,'MarkerSize'
 xlabel(x_label_text); ylabel('Average effective spectral efficiency (bit/s/Hz)'); title(title_text,'FontSize',11);
 legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
-function draw_convergence(conv_results, schemes, conv_T_max)
-figure('Name','Fig5_Convergence','Position',[100 100 820 520]);
+function draw_convergence(conv_results, schemes, conv_T_max, conv_tail_scale)
+figure('Name','Fig5_Convergence','Position',[100 100 900 520]);
 
-x = 0:conv_T_max;
-
+max_iter = 0;
+x_max_plot = conv_T_max;
 for s = 1:numel(schemes)
-    r = conv_results{s};
-    plot(x, r, '-o', 'LineWidth', 1.2, 'MarkerSize', 4);
+    r = conv_results{s}.R_eff(:);
+    iter_end = conv_results{s}.iter_end;
+    if iter_end < conv_T_max
+        x_raw_full = 0:conv_T_max;
+        r_full = [r; r(end) * ones(conv_T_max - iter_end, 1)];
+    else
+        x_raw_full = 0:iter_end;
+        r_full = r;
+    end
+
+    x_plot = compress_iter_axis(x_raw_full, conv_T_max, conv_tail_scale);
+    h = plot(x_plot, r_full, '-o', 'LineWidth', 1.2, 'MarkerSize', 4);
     hold on;
+
+    if strcmp(conv_results{s}.alg_mode, 'AO') && strcmp(conv_results{s}.init_mode, 'paper')
+        plot([-0.6, 0], [0, r(1)], '-', 'LineWidth', 1.2, 'Color', h.Color);
+    end
+
+    max_iter = max(max_iter, iter_end);
+    x_max_plot = max(x_max_plot, x_plot(end));
 end
 
-xlabel('Outer iteration index');
-ylabel('R_{eff} (bit/s/Hz)');
-title('Convergence');
+left_ticks = 0:5:conv_T_max;
+right_cand = [50 100 200 300 400 500];
+right_ticks = right_cand(right_cand > conv_T_max & right_cand <= max_iter);
+if max_iter > conv_T_max && isempty(right_ticks)
+    right_ticks = max_iter;
+end
+xtick_raw = unique([left_ticks, right_ticks]);
+xtick_pos = compress_iter_axis(xtick_raw, conv_T_max, conv_tail_scale);
+
+xticks(xtick_pos);
+xticklabels(string(xtick_raw));
+
+xline(conv_T_max, 'k--', 'LineWidth', 1.0);
+yl = ylim;
+y_text = yl(1) + 0.08*(yl(2)-yl(1));
+text(conv_T_max + 1.0, y_text, sprintf('x-axis compressed after %d iterations', conv_T_max));
+
+xlabel('Iteration index');
+ylabel('Spectral efficiency (bit/s/Hz)');
+title(sprintf('Convergence behavior of different schemes with compressed x-axis'));
 legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
 grid on;
-xlim([0 conv_T_max]);
+xlim([-1, x_max_plot + 2]);
 set(gca, 'FontSize', 10);
+end
+
+function x_plot = compress_iter_axis(x_raw, conv_T_max, conv_tail_scale)
+x_plot = x_raw;
+idx = x_raw > conv_T_max;
+x_plot(idx) = conv_T_max + (x_raw(idx) - conv_T_max) * conv_tail_scale;
 end
 function draw_rate_cdf(rate_cells, schemes)
 for s=1:numel(schemes), r=sort(rate_cells{s}(:)); F=(1:numel(r))/numel(r); plot(r,F,'LineWidth',1.2); hold on; end
