@@ -14,7 +14,7 @@ do_K           = false;
 do_N           = false;
 do_M           = false;
 do_Dy          = false;
-do_convergence = true;
+do_convergence = false;
 conv_T_max     = 25;
 do_cdf         = false;
 do_final_bar_ab = false;
@@ -518,58 +518,44 @@ end
 
 
 function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy)
-pa_pos = [state.X, scene.xW, params_h2.d];
-beam_center = [state.X, scene.xW, 0];
+pa_y = state.X;
+pa_x = scene.xW;
+pa_z = params_h2.d;
 
-width_scale = 0.8 + 0.45*(params_h2.a + params_h2.b);
-base_radius = 0.10 * min([area_Dx, area_Dy]);
-beam_len = 0.85 * params_h2.d;
+[U, V] = meshgrid(linspace(0,2*pi,100), linspace(0,1,100));
 
-[U, V] = meshgrid(linspace(0,2*pi,80), linspace(0,1,80));
-center_z = pa_pos(3) - beam_len * V;
-radius_shape = 0.18 + 0.82 * sin(pi*V).^0.9;
-radius = base_radius * width_scale .* radius_shape;
+r0 = 0.03;
+r_max = 0.9 + 0.8 * params_h2.a;
+radius = r0 + r_max * V.^0.75;
 
-Y = pa_pos(1) + radius .* cos(U);
-X = pa_pos(2) + radius .* sin(U);
-Z = center_z;
-C = exp(-2.2*(radius./(max(radius(:))+eps)).^2) .* (0.35 + 0.65*V);
+Y = pa_y + radius .* cos(U);
+X = pa_x + radius .* sin(U);
+Z = pa_z * (1 - V);
 
-surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
+C = 0.25 + 0.75 * V;
+
+surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.92);
 hold on;
 
-for ib = 1:3
-    side = (-1)^(ib);
-    offset_y = side * (0.35 + 0.15*ib) * base_radius;
-    offset_x = (0.18*ib - 0.30) * base_radius;
-    sl_len = beam_len * (0.45 + 0.08*ib);
-    sl_radius0 = base_radius * (0.20 - 0.03*ib);
+plot3([pa_y pa_y], [pa_x pa_x], [pa_z 0], 'k--', 'LineWidth', 1.0);
+plot3(pa_y, pa_x, pa_z, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
 
-    [U2, V2] = meshgrid(linspace(0,2*pi,48), linspace(0,1,44));
-    Z2 = pa_pos(3) - 0.18*beam_len - sl_len*V2;
-    r2 = sl_radius0 * (0.45 + 0.55*sin(pi*V2).^1.1);
-    Y2 = pa_pos(1) + offset_y + r2 .* cos(U2);
-    X2 = pa_pos(2) + offset_x + r2 .* sin(U2);
-    C2 = 0.12 + 0.18*(1 - V2);
-    surf(Y2, X2, Z2, C2, 'EdgeColor', 'none', 'FaceAlpha', 0.28);
-end
-
-foot_rx = base_radius * width_scale * 1.05;
-foot_ry = base_radius * width_scale * 0.85;
-theta_fp = linspace(0,2*pi,180);
-Yf = beam_center(1) + foot_ry*cos(theta_fp);
-Xf = beam_center(2) + foot_rx*sin(theta_fp);
-Zf = zeros(size(theta_fp));
-fill3(Yf, Xf, Zf, [0.4 0.8 1.0], 'FaceAlpha', 0.25, 'EdgeColor', [0.2 0.5 0.9], 'LineStyle', '--');
-
-plot3([pa_pos(1), beam_center(1)], [pa_pos(2), beam_center(2)], [pa_pos(3), beam_center(3)], 'k--', 'LineWidth', 1.2);
-plot3(pa_pos(1), pa_pos(2), pa_pos(3), 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
+foot_U = linspace(0,2*pi,120);
+foot_r = r0 + r_max;
+foot_ry = foot_r;
+foot_rx = foot_r * 0.9;
+foot_y = pa_y + foot_ry * cos(foot_U);
+foot_x = pa_x + foot_rx * sin(foot_U);
+foot_z = zeros(size(foot_U));
+fill3(foot_y, foot_x, foot_z, 0.5 * ones(size(foot_U)), ...
+    'FaceAlpha', 0.18, 'EdgeColor', [0.2 0.5 1.0]);
 
 xlabel('y (m)');
 ylabel('x (m)');
 zlabel('z (m)');
 title(sprintf('3D main lobe pattern, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
 colormap(jet);
+colorbar;
 grid on;
 axis tight;
 daspect([1 1 0.6]);
@@ -577,7 +563,6 @@ view(45,25);
 box on;
 hold off;
 end
-
 function conv_results = run_convergence_cases(base_params, schemes, conv_T_max)
 params_conv = base_params;
 params_conv.T_max = conv_T_max;
