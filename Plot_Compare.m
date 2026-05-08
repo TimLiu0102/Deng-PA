@@ -6,13 +6,13 @@ if nargin < 2 || isempty(base_scene)
     base_scene = Channel_model('build_scene', base_params, [], [], []);
 end
 
-plot_mode = 'full';   % 'debug' 或 'full'
+plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
 do_snr         = false;
 do_K           = false;
 do_N           = false;
-do_M           = true;
+do_M           = false;
 do_Dy          = false;
 do_convergence = false;
 conv_T_max     = 25;
@@ -61,7 +61,7 @@ else
 end
 
 if strcmp(plot_mode, 'debug')
-    MC = 5;
+    MC = 3;
 else
     MC = 30;
 end
@@ -533,14 +533,14 @@ for ia = 1:size(ab_cases,1)
     H2_z0_plot = max(H2_z0, 1e-30);
     imagesc(y_grid, x_grid, H2_z0_plot);
     set(gca, 'YDir', 'normal');
-    set(gca, 'ColorScale', 'log');
     hold on;
     plot(state.X, scene.xW, 'w.', 'MarkerSize', 18);
     hold off;
+    colormap(jet);
     colorbar;
     xlabel('y (m)');
     ylabel('x (m)');
-    title(sprintf('z = 0 plane |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+    title(sprintf('z = 0 plane normalized |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
 
     H2_ab.scene_xW = scene.xW;
     H2_ab.H3{ia} = H3;
