@@ -6,15 +6,15 @@ if nargin < 2 || isempty(base_scene)
     base_scene = Channel_model('build_scene', base_params, [], [], []);
 end
 
-plot_mode = 'full';   % 'debug' 或 'full'
+plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
 do_snr         = false;
 do_K           = false;
 do_N           = false;
-do_M           = true;
+do_M           = false;
 do_Dy          = false;
-do_convergence = false;
+do_convergence = true;
 conv_T_max     = 25;
 do_cdf         = false;
 do_final_bar_ab = false;
@@ -59,7 +59,7 @@ else
 end
 
 if strcmp(plot_mode, 'debug')
-    MC = 5;
+    MC = 3;
 else
     MC = 30;
 end
