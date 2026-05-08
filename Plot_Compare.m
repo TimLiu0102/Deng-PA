@@ -16,8 +16,8 @@ do_M           = false;
 do_Dy          = false;
 do_convergence = true;
 do_cdf         = false;
-do_final_bar_ab = true;
-do_H2_ab = true;
+do_final_bar_ab = false;
+do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
 
@@ -616,7 +616,7 @@ end
 
 function conv_results = run_convergence_cases(base_params, schemes)
 params_conv = base_params;
-params_conv.T_max = 20;
+params_conv.T_max = 30;
 params_conv.SA_max_iter = 5000;
 ns=numel(schemes); conv_results=struct('name',cell(ns,1),'alg_mode',cell(ns,1),'R_eff',cell(ns,1),'T_max',cell(ns,1),'SA_max_iter',cell(ns,1));
 scene_case=build_scene_with_fixed_users(params_conv, build_fixed_user_pool(params_conv,1,'conv',params_conv.seed+50001));
@@ -650,7 +650,7 @@ xlabel(x_label_text); ylabel('Average effective spectral efficiency (bit/s/Hz)')
 legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
 function draw_convergence(conv_results, schemes)
-break_iter = 20; x_end_real = 5000; x_end_plot = 5000; x_break_plot = x_end_plot/3;
+break_iter = 30; x_end_real = 5000; x_end_plot = 5000; x_break_plot = x_end_plot/3;
 figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 1100 560]);
 for s=1:numel(conv_results)
     r = conv_results(s).R_eff(:);
@@ -670,7 +670,7 @@ y_all = cell2mat(arrayfun(@(s) s.R_eff(:), conv_results, 'UniformOutput', false)
 r_min = min(y_all); r_max = max(y_all); pad = max(1e-6, 0.08*(r_max-r_min)); ylim([r_min-pad, r_max+pad]);
 yl = ylim; plot([x_break_plot x_break_plot], yl, 'k--', 'LineWidth', 1.2);
 text(x_break_plot + 80, yl(1) + 0.08*(yl(2)-yl(1)), 'x-axis compressed after 20 iterations', 'FontSize', 11);
-tick_real = [0 5 10 15 20 500 1000 1500 2000 2500 3000 3500 4000 4500 5000];
+tick_real = [0 5 10 15 20 25 30 500 1000 1500 2000 2500 3000 3500 4000 4500 5000];
 xticks(compress_conv_x(tick_real, break_iter, x_break_plot, x_end_real, x_end_plot)); xticklabels(string(tick_real));
 legend({conv_results.name},'Location','northeastoutside','FontSize',9);
 xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence behavior of different schemes with compressed x-axis');

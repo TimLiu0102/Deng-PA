@@ -132,14 +132,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'pso_joint';   % 'AO' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws' | 'fixedX' | 'w_only'
+scheme_mode = 'fixed_antenna_ws';   % 'AO' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws' | 'fixedX' | 'w_only'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'uniform_neutral';   % 'paper' | 'uniform_neutral' | 'uniform_fixed' | 'fixedX' | 'reffX' | 'margin' | 'random' | 'uniform'
+init_mode = 'uniform_fixed';   % 'paper' | 'uniform_neutral' | 'uniform_fixed' | 'fixedX' | 'reffX' | 'margin' | 'random' | 'uniform'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
@@ -377,8 +377,8 @@ elseif strcmp(scheme_mode, 'fixed_antenna_ws')
         R_eff_after_angle = R_eff_after_W;
         R_eff_after_X = R_eff_after_W;
 
-        % [state.S, state.swap_flag] = AO_S_fixed(params, scene, model, state);
-        [state.S, state.W, state.swap_flag] = AO_S_fixed_reW(params, scene, model, state);
+        [state.S, state.swap_flag] = AO_S_fixed(params, scene, model, state);
+        % [state.S, state.W, state.swap_flag] = AO_S_fixed_reW(params, scene, model, state);
 
         state.X = X_fixed;
         state.theta = theta_fixed;
