@@ -194,6 +194,7 @@ end
 function schemes = build_scheme_list()
 schemes = struct('name', {}, 'init_mode', {}, 'alg_mode', {});
 schemes(1).name = 'Proposed AO'; schemes(1).init_mode = 'paper'; schemes(1).alg_mode = 'AO';
+% 注意：这里的 init_mode 必须和 main.m 中对应单次实验的 init_mode 保持一致。
 schemes(2).name = 'Fixed W+S'; schemes(2).init_mode = 'uniform_fixed'; schemes(2).alg_mode = 'fixed_antenna_ws';
 schemes(3).name = 'Fixed W+S reW'; schemes(3).init_mode = 'uniform_fixed'; schemes(3).alg_mode = 'fixed_antenna_ws_reW';
 schemes(4).name = 'HG-Rsum'; schemes(4).init_mode = 'uniform_neutral'; schemes(4).alg_mode = 'hg_multiuser';
@@ -547,46 +548,43 @@ end
 
 function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy, H3, x_grid, y_grid, z_grid)
 beam_center = [state.X, scene.xW, 0];
-H2_z0 = H3(:,:,1);
-P2 = H2_z0 / max(H2_z0(:));
+P3 = H3 / max(H3(:));
 p_edge = 0.10;
-color_z_top = 1;
-
-mask0 = (P2 >= p_edge);
-x_support = x_grid(any(mask0,2));
-y_support = y_grid(any(mask0,1));
-rx0 = 0.5 * (max(x_support) - min(x_support));
-ry0 = 0.5 * (max(y_support) - min(y_support));
-
-z_total = 2 * color_z_top;
-z_mid = color_z_top;
-z_profile = linspace(0, z_total, 121).';
-v = abs((z_profile - z_mid) / color_z_top);
-scale = sqrt(0.15 + 0.85 * v.^2);
-scale = scale / max(scale);
-rx_profile = rx0 * scale;
-ry_profile = ry0 * scale;
-
-c_bottom = 1.0;
-c_outer = p_edge;
-idx_lower = z_profile <= color_z_top;
-idx_upper = z_profile > color_z_top;
-c_lower = linspace(c_bottom, c_outer, nnz(idx_lower)).';
-c_upper = linspace(c_outer, 0.75*c_outer, nnz(idx_upper)).';
-c_profile = [c_lower; c_upper];
-
+z_profile = z_grid(:);
 theta = linspace(0,2*pi,160);
-[U, Z] = meshgrid(theta, z_profile);
-RX = repmat(rx_profile, 1, numel(theta));
-RY = repmat(ry_profile, 1, numel(theta));
-Y = state.X + RY .* cos(U);
-X = scene.xW + RX .* sin(U);
-C = repmat(c_profile, 1, numel(theta));
-pa_pos = [state.X, scene.xW, z_profile(end)];
+rho = linspace(0,1,60);
+[RR, TT] = meshgrid(rho, theta);
 
-surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
-shading interp;
+rx_profile = zeros(numel(z_profile),1);
+ry_profile = zeros(numel(z_profile),1);
+for iz = 1:numel(z_profile)
+    P2 = P3(:,:,iz);
+    mask = (P2 >= p_edge);
+    x_support = x_grid(any(mask,2));
+    y_support = y_grid(any(mask,1));
+    if isempty(x_support) || isempty(y_support)
+        rx_profile(iz) = 0;
+        ry_profile(iz) = 0;
+    else
+        rx_profile(iz) = 0.5 * (max(x_support) - min(x_support));
+        ry_profile(iz) = 0.5 * (max(y_support) - min(y_support));
+    end
+end
+rx0 = rx_profile(1);
+ry0 = ry_profile(1);
+
 hold on;
+for iz = 1:numel(z_profile)
+    rx = rx_profile(iz);
+    ry = ry_profile(iz);
+    if rx <= 0 || ry <= 0, continue; end
+    Y = state.X + ry * RR .* cos(TT);
+    X = scene.xW + rx * RR .* sin(TT);
+    Z = z_profile(iz) * ones(size(X));
+    C = interp2(y_grid, x_grid, P3(:,:,iz), Y, X, 'linear', 0);
+    surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
+end
+shading interp;
 
 foot_rx = rx0;
 foot_ry = ry0;
@@ -596,6 +594,7 @@ Xf = scene.xW + foot_rx*sin(theta_fp);
 Zf = zeros(size(theta_fp));
 fill3(Yf, Xf, Zf, [0.4 0.8 1.0], 'FaceAlpha', 0.25, 'EdgeColor', [0.2 0.5 0.9], 'LineStyle', '--');
 
+pa_pos = [state.X, scene.xW, params_h2.d];
 plot3([pa_pos(1), beam_center(1)], [pa_pos(2), beam_center(2)], [pa_pos(3), beam_center(3)], 'k--', 'LineWidth', 1.2);
 plot3(pa_pos(1), pa_pos(2), pa_pos(3), 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
 
@@ -606,6 +605,7 @@ title(sprintf('3D main lobe pattern, a=%.2f, b=%.2f', params_h2.a, params_h2.b))
 colormap(jet);
 grid on;
 axis tight;
+zlim([0 params_h2.d]);
 daspect([1 1 0.6]);
 view(45,25);
 box on;
@@ -617,7 +617,7 @@ params_conv.T_max = 30;
 params_conv.SA_max_iter = 5000;
 T_conv = params_conv.T_max;
 SA_iter = params_conv.SA_max_iter;
-x_eval = unique([0:T_conv, 100:100:SA_iter]).';
+x_eval = unique([0:T_conv, 250:250:SA_iter]).';
 ns=numel(schemes); conv_results=struct('name',cell(ns,1),'alg_mode',cell(ns,1),'x_real',cell(ns,1),'mean_R_eff',cell(ns,1),'std_R_eff',cell(ns,1),'R_eff_mc',cell(ns,1),'T_max',cell(ns,1),'SA_max_iter',cell(ns,1));
 for s=1:ns
 R_eff_mc = zeros(numel(x_eval), MC);
@@ -677,7 +677,6 @@ for s=1:numel(conv_results)
     r_mean = conv_results(s).mean_R_eff;
     x_plot = compress_conv_x(x_real, break_iter, x_break_plot, x_end_real, x_end_plot);
     h = plot(x_plot, r_mean, '-o', 'LineWidth', 1.6, 'MarkerSize', 5, 'MarkerFaceColor', 'none'); hold on;
-    h.MarkerIndices = 1:5:numel(x_plot);
 end
 y_all = [];
 for s = 1:numel(conv_results), y_all = [y_all; conv_results(s).mean_R_eff(:)]; end
