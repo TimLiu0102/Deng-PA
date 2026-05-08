@@ -15,6 +15,9 @@ do_N           = false;
 do_M           = true;
 do_Dy          = false;
 do_convergence = false;
+conv_T_max     = 25;
+conv_run_T_max = 25;
+conv_tail_scale = 0.10;
 do_cdf         = false;
 do_final_bar_ab = false;
 do_H2_ab = false;
@@ -150,8 +153,8 @@ if do_Dy
 end
 
 if do_convergence
-    conv_results = run_convergence_cases(base_params, schemes);
-    draw_convergence(conv_results, schemes);
+    conv_results = run_convergence_cases(base_params, schemes, conv_run_T_max);
+    draw_convergence(conv_results, schemes, conv_T_max, conv_tail_scale);
     compare_result.convergence = conv_results;
 end
 
@@ -492,57 +495,24 @@ for ia = 1:size(ab_cases,1)
 
     figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), 'Position', [100 100 1100 480]);
 
+    H2_z0 = H3(:,:,1);
+    levels = [0.05 0.12 0.22 0.35 0.50 0.68 0.82 0.92 1.00];
+
     subplot(1,2,1);
-    [Y3, X3, Z3] = meshgrid(y_grid, x_grid, z_grid);
-    H3_plot = H3 / (max(H3(:)) + eps);
-    iso_outer = 0.05;
-    iso_inner = 0.20;
-
-    fv1 = isosurface(Y3, X3, Z3, H3_plot, iso_outer);
-    if ~isempty(fv1.vertices)
-        p1 = patch(fv1);
-        isonormals(Y3, X3, Z3, H3_plot, p1);
-        set(p1, 'FaceColor', [0.3 0.6 0.9], 'EdgeColor', 'none', 'FaceAlpha', 0.20);
-        hold on;
-    else
-        hold on;
-    end
-
-    fv2 = isosurface(Y3, X3, Z3, H3_plot, iso_inner);
-    if ~isempty(fv2.vertices)
-        p2 = patch(fv2);
-        isonormals(Y3, X3, Z3, H3_plot, p2);
-        set(p2, 'FaceColor', [0.1 0.3 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.55);
-    end
-
-    plot3(state.X, scene.xW, params_h2.d, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
-    xlabel('y (m)');
-    ylabel('x (m)');
-    zlabel('z (m)');
-    title(sprintf('3D beam shape, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
-    grid on;
-    axis tight;
-    daspect([1 1 0.6]);
-    view(45,25);
-    camlight headlight;
-    camlight right;
-    lighting gouraud;
-    box on;
-    hold off;
+    draw_main_lobe_pattern(params_h2, scene, state, x_grid, y_grid, H2_z0);
 
     subplot(1,2,2);
-    H2_z0 = H3(:,:,1);
-    H2_z0_plot = max(H2_z0, 1e-30);
-    imagesc(y_grid, x_grid, H2_z0_plot);
+    H2_z0_norm = H2_z0 / (max(H2_z0(:)) + eps);
+    contourf(y_grid, x_grid, H2_z0_norm, levels, 'LineColor', 'none');
     set(gca, 'YDir', 'normal');
-    set(gca, 'ColorScale', 'log');
     hold on;
     plot(state.X, scene.xW, 'w.', 'MarkerSize', 18);
     hold off;
+    colormap(jet);
     colorbar;
     xlabel('y (m)');
     ylabel('x (m)');
-    title(sprintf('z = 0 plane |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+    title(sprintf('z = 0 plane normalized |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
 
     H2_ab.scene_xW = scene.xW;
     H2_ab.H3{ia} = H3;
@@ -550,9 +520,100 @@ for ia = 1:size(ab_cases,1)
 end
 end
 
-function conv_results = run_convergence_cases(base_params, schemes)
-ns=numel(schemes); conv_results=cell(ns,1); scene_case=build_scene_with_fixed_users(base_params, build_fixed_user_pool(base_params,1,'conv',base_params.seed+50001));
-for s=1:ns, out=run_one_case(base_params,schemes(s).init_mode,schemes(s).alg_mode,base_params.seed+1,base_params.seed+100+s,scene_case); conv_results{s}=out.history.R_eff(:); end
+
+function draw_main_lobe_pattern(params_h2, scene, state, x_grid, y_grid, H2_z0)
+levels = [0.05 0.12 0.22 0.35 0.50 0.68 0.82 0.92 1.00];
+H2_z0_norm = H2_z0 / (max(H2_z0(:)) + eps);
+
+pa_y = state.X;
+pa_x = scene.xW;
+pa_z = params_h2.d;
+
+mask = H2_z0_norm >= 0.12;
+if any(mask(:))
+    yv = y_grid(any(mask,1));
+    xv = x_grid(any(mask,2));
+    ay_max = max(0.25, 0.5 * (max(yv) - min(yv)));
+    ax_max = max(0.20, 0.5 * (max(xv) - min(xv)));
+else
+    ay_max = 0.9 + 0.4*params_h2.a;
+    ax_max = 0.7 + 0.3*params_h2.b;
+end
+
+[U, T] = meshgrid(linspace(0,2*pi,100), linspace(0,1,120));
+z_top = 0.95 * pa_z;
+z_tip = 0.25 * pa_z;
+Z = z_top - (z_top - z_tip) * T;
+
+shape = (T.^0.60) .* ((1 - T).^1.10);
+shape = shape / (max(shape(:)) + eps);
+shape = 0.08 + 0.92 * shape;
+
+Ay = ay_max * shape;
+Ax = ax_max * shape;
+Y = pa_y + Ay .* cos(U);
+X = pa_x + Ax .* sin(U);
+
+C = 1 - T;
+Cq = levels(1) * ones(size(C));
+for k = 2:numel(levels)
+    idx = C >= levels(k);
+    Cq(idx) = levels(k);
+end
+
+surf(Y, X, Z, Cq, 'EdgeColor', 'none', 'FaceAlpha', 0.92);
+hold on;
+
+plot3([pa_y pa_y], [pa_x pa_x], [pa_z 0], 'k--', 'LineWidth', 1.0);
+plot3(pa_y, pa_x, pa_z, 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
+
+foot_u = linspace(0,2*pi,160);
+foot_y = pa_y + ay_max * cos(foot_u);
+foot_x = pa_x + ax_max * sin(foot_u);
+foot_z = zeros(size(foot_u));
+fill3(foot_y, foot_x, foot_z, [0.5 0.7 1.0], 'FaceAlpha', 0.18, 'EdgeColor', [0.2 0.5 1.0]);
+
+xlabel('y (m)');
+ylabel('x (m)');
+zlabel('z (m)');
+title(sprintf('3D main lobe pattern, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+colormap(jet);
+colorbar;
+grid on;
+axis tight;
+daspect([1 1 0.6]);
+view(45,25);
+box on;
+hold off;
+end
+function conv_results = run_convergence_cases(base_params, schemes, conv_run_T_max)
+ns = numel(schemes);
+conv_results = cell(ns,1);
+
+params_conv = base_params;
+params_conv.T_max = conv_run_T_max;
+
+user_pos_pool = build_fixed_user_pool(params_conv, 1, 'conv', params_conv.seed + 50001);
+scene_case = build_scene_with_fixed_users(params_conv, user_pos_pool);
+
+for s = 1:ns
+    out = run_one_case(params_conv, ...
+        schemes(s).init_mode, ...
+        schemes(s).alg_mode, ...
+        params_conv.seed + 1, ...
+        params_conv.seed + 100 + s, ...
+        scene_case);
+
+    r = out.history.R_eff(:);
+    iter_end = numel(r) - 1;
+
+    conv_results{s} = struct();
+    conv_results{s}.name = schemes(s).name;
+    conv_results{s}.init_mode = schemes(s).init_mode;
+    conv_results{s}.alg_mode = schemes(s).alg_mode;
+    conv_results{s}.R_eff = r;
+    conv_results{s}.iter_end = iter_end;
+end
 end
 function rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_pools)
 ns=numel(schemes); rate_cells=cell(ns,1);
@@ -574,9 +635,64 @@ for s=1:numel(schemes), plot(x_vec,mean_R(:,s),'-o','LineWidth',1.4,'MarkerSize'
 xlabel(x_label_text); ylabel('Average effective spectral efficiency (bit/s/Hz)'); title(title_text,'FontSize',11);
 legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
-function draw_convergence(conv_results, schemes)
-figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 820 520]); for s=1:numel(schemes), plot(conv_results{s},'-o','LineWidth',1.2); hold on; end
-xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence'); legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
+function draw_convergence(conv_results, schemes, conv_T_max, conv_tail_scale)
+figure('Name','Fig5_Convergence','Position',[100 100 900 520]);
+
+max_iter = 0;
+x_max_plot = conv_T_max;
+for s = 1:numel(schemes)
+    r = conv_results{s}.R_eff(:);
+    iter_end = conv_results{s}.iter_end;
+    if iter_end < conv_T_max
+        x_raw_full = 0:conv_T_max;
+        r_full = [r; r(end) * ones(conv_T_max - iter_end, 1)];
+    else
+        x_raw_full = 0:iter_end;
+        r_full = r;
+    end
+
+    x_plot = compress_iter_axis(x_raw_full, conv_T_max, conv_tail_scale);
+    h = plot(x_plot, r_full, '-o', 'LineWidth', 1.2, 'MarkerSize', 4);
+    hold on;
+
+    if strcmp(conv_results{s}.alg_mode, 'AO') && strcmp(conv_results{s}.init_mode, 'paper')
+        plot([-0.6, 0], [0, r(1)], '-', 'LineWidth', 1.2, 'Color', h.Color);
+    end
+
+    max_iter = max(max_iter, iter_end);
+    x_max_plot = max(x_max_plot, x_plot(end));
+end
+
+left_ticks = 0:5:conv_T_max;
+right_cand = [50 100 200 300 400 500];
+right_ticks = right_cand(right_cand > conv_T_max & right_cand <= max_iter);
+if max_iter > conv_T_max && isempty(right_ticks)
+    right_ticks = max_iter;
+end
+xtick_raw = unique([left_ticks, right_ticks]);
+xtick_pos = compress_iter_axis(xtick_raw, conv_T_max, conv_tail_scale);
+
+xticks(xtick_pos);
+xticklabels(string(xtick_raw));
+
+xline(conv_T_max, 'k--', 'LineWidth', 1.0);
+yl = ylim;
+y_text = yl(1) + 0.08*(yl(2)-yl(1));
+text(conv_T_max + 1.0, y_text, sprintf('x-axis compressed after %d iterations', conv_T_max));
+
+xlabel('Iteration index');
+ylabel('Spectral efficiency (bit/s/Hz)');
+title(sprintf('Convergence behavior of different schemes with compressed x-axis'));
+legend({schemes.name}, 'Location', 'southoutside', 'NumColumns', 2, 'FontSize', 8);
+grid on;
+xlim([-1, x_max_plot + 2]);
+set(gca, 'FontSize', 10);
+end
+
+function x_plot = compress_iter_axis(x_raw, conv_T_max, conv_tail_scale)
+x_plot = x_raw;
+idx = x_raw > conv_T_max;
+x_plot(idx) = conv_T_max + (x_raw(idx) - conv_T_max) * conv_tail_scale;
 end
 function draw_rate_cdf(rate_cells, schemes)
 for s=1:numel(schemes), r=sort(rate_cells{s}(:)); F=(1:numel(r))/numel(r); plot(r,F,'LineWidth',1.2); hold on; end
