@@ -16,8 +16,8 @@ do_M           = false;
 do_Dy          = false;
 do_convergence = true;
 do_cdf         = false;
-do_final_bar_ab = true;
-do_H2_ab = true;
+do_final_bar_ab = false;
+do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
 
