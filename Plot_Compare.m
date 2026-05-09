@@ -14,10 +14,10 @@ do_K           = false;
 do_N           = false;
 do_M           = false;
 do_Dy          = false;
-do_convergence = false;
+do_convergence = true;
 do_cdf         = false;
 do_final_bar_ab = false;
-do_H2_ab = true;
+do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
 
@@ -150,7 +150,7 @@ if do_Dy
 end
 
 if do_convergence
-    conv_results = run_convergence_cases(base_params, schemes);
+    conv_results = run_convergence_cases(base_params, schemes, MC, user_pos_pools);
     draw_convergence(conv_results, schemes);
     compare_result.convergence = conv_results;
 end
@@ -591,21 +591,70 @@ box on;
 hold off;
 end
 
-function conv_results = run_convergence_cases(base_params, schemes)
+function conv_results = run_convergence_cases(base_params, schemes, MC, user_pos_pools)
 params_conv = base_params;
 params_conv.T_max = 30;
 params_conv.SA_max_iter = 5000;
-ns=numel(schemes); conv_results=struct('name',cell(ns,1),'alg_mode',cell(ns,1),'R_eff',cell(ns,1),'T_max',cell(ns,1),'SA_max_iter',cell(ns,1));
-scene_case=build_scene_with_fixed_users(params_conv, build_fixed_user_pool(params_conv,1,'conv',params_conv.seed+50001));
-for s=1:ns
-out=run_one_case(params_conv,schemes(s).init_mode,schemes(s).alg_mode,params_conv.seed+1,params_conv.seed+100+s,scene_case);
-conv_results(s).name = schemes(s).name;
-conv_results(s).alg_mode = schemes(s).alg_mode;
-conv_results(s).R_eff = out.history.R_eff(:);
-conv_results(s).T_max = params_conv.T_max;
-conv_results(s).SA_max_iter = params_conv.SA_max_iter;
+
+ns = numel(schemes);
+conv_results = struct('name',cell(ns,1), ...
+                      'alg_mode',cell(ns,1), ...
+                      'R_eff',cell(ns,1), ...
+                      'R_eff_std',cell(ns,1), ...
+                      'R_eff_all',cell(ns,1), ...
+                      'T_max',cell(ns,1), ...
+                      'SA_max_iter',cell(ns,1), ...
+                      'MC',cell(ns,1));
+
+for idx_scheme = 1:ns
+    if strcmp(schemes(idx_scheme).alg_mode, 'sa_joint')
+        target_len = params_conv.SA_max_iter + 1;
+    else
+        target_len = params_conv.T_max + 1;
+    end
+
+    R_eff_all = zeros(target_len, MC);
+
+    for idx_mc = 1:MC
+        % fprintf('Convergence: %s, MC %d/%d\n', schemes(idx_scheme).name, idx_mc, MC);
+
+        user_pos_pool = user_pos_pools{idx_mc};
+        scene_case = build_scene_with_fixed_users(params_conv, user_pos_pool);
+
+        init_seed_case = base_params.seed + 20000 + idx_mc;
+        alg_seed_case  = base_params.seed + 30000 + 100*idx_scheme + idx_mc;
+
+        out = run_one_case(params_conv, ...
+            schemes(idx_scheme).init_mode, ...
+            schemes(idx_scheme).alg_mode, ...
+            init_seed_case, alg_seed_case, scene_case);
+
+        r = out.history.R_eff(:);
+        r = pad_convergence_curve(r, target_len);
+        R_eff_all(:,idx_mc) = r;
+    end
+
+    conv_results(idx_scheme).name = schemes(idx_scheme).name;
+    conv_results(idx_scheme).alg_mode = schemes(idx_scheme).alg_mode;
+    conv_results(idx_scheme).R_eff = mean(R_eff_all,2);
+    conv_results(idx_scheme).R_eff_std = std(R_eff_all,0,2);
+    conv_results(idx_scheme).R_eff_all = R_eff_all;
+    conv_results(idx_scheme).T_max = params_conv.T_max;
+    conv_results(idx_scheme).SA_max_iter = params_conv.SA_max_iter;
+    conv_results(idx_scheme).MC = MC;
 end
 end
+
+function r_pad = pad_convergence_curve(r, target_len)
+r = r(:);
+if numel(r) >= target_len
+    r_pad = r(1:target_len);
+else
+    r_pad = [r; r(end)*ones(target_len-numel(r),1)];
+end
+end
+
+
 function rate_cells = collect_rate_cdf_data(base_params, schemes, MC, user_pos_pools)
 ns=numel(schemes); rate_cells=cell(ns,1);
 for mc=1:MC
