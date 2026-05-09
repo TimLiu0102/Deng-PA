@@ -6,17 +6,17 @@ if nargin < 2 || isempty(base_scene)
     base_scene = Channel_model('build_scene', base_params, [], [], []);
 end
 
-plot_mode = 'debug';   % 'debug' 或 'full'
+plot_mode = 'full';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
 do_snr         = false;
 do_K           = false;
-do_N           = true;
+do_N           = false;
 do_M           = false;
 do_Dy          = false;
-do_convergence = false;
+do_convergence = true;
 do_cdf         = false;
-do_final_bar_ab = false;
+do_final_bar_ab = true;
 do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
@@ -58,9 +58,9 @@ else
 end
 
 if strcmp(plot_mode, 'debug')
-    MC = 1;
+    MC = 3;
 else
-    MC = 30;
+    MC = 100;
 end
 
 K_vec = unique(max(K_vec, base_params.K_serv));
@@ -794,7 +794,7 @@ for s = 1:numel(schemes)
     idx_style = mod(s-1, size(colors,1)) + 1;
 
     plot(x_vec, mean_R(:,s), ...
-        'LineStyle', line_styles{idx_style}, ...
+        'LineStyle', '-', ...
         'Marker', markers{idx_style}, ...
         'Color', colors(idx_style,:), ...
         'MarkerEdgeColor', colors(idx_style,:), ...
