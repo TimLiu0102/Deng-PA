@@ -11,14 +11,14 @@ plot_mode = 'debug';   % 'debug' 或 'full'
 
 do_snr         = false;
 do_K           = false;
-do_N           = false;
+do_N           = true;
 do_M           = false;
 do_Dy          = false;
 do_convergence = false;
 do_cdf         = false;
 do_final_bar_ab = false;
 do_H2_ab = false;
-do_default_geometry = true;
+do_default_geometry = false;
 do_default_check = false;
 
 fprintf('\n================ 多方案对比绘图 ================\n');
@@ -58,7 +58,7 @@ else
 end
 
 if strcmp(plot_mode, 'debug')
-    MC = 3;
+    MC = 1;
 else
     MC = 30;
 end
@@ -778,11 +778,45 @@ end
 function scene_case = build_scene_with_fixed_users(params_case, user_pos_pool)
 scene_case = Channel_model('build_scene', params_case, [], [], []); scene_case.user_pos = user_pos_pool(:,1:params_case.K); scene_case.K=params_case.K; scene_case.M=params_case.M; scene_case.N=params_case.N;
 end
+
 function draw_mean_error_curve(x_vec, mean_R, std_R, schemes, x_label_text, title_text)
-for s=1:numel(schemes), plot(x_vec,mean_R(:,s),'-o','LineWidth',1.4,'MarkerSize',5); hold on; end
-xlabel(x_label_text); ylabel('Average effective spectral efficiency (bit/s/Hz)'); title(title_text,'FontSize',11);
-legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
+colors = [0.00 0.45 0.74;    % Proposed AO: blue
+          0.85 0.33 0.10;    % Fixed W+S: orange
+          0.93 0.69 0.13;    % Fixed W+S reW: yellow
+          0.49 0.18 0.56;    % HG-Rsum: purple
+          0.47 0.67 0.19];   % SA joint: green
+
+line_styles = {'-', '--', '-.', ':', '-'};
+markers = {'o', 's', '^', 'd', 'v'};
+
+hold on;
+for s = 1:numel(schemes)
+    idx_style = mod(s-1, size(colors,1)) + 1;
+
+    plot(x_vec, mean_R(:,s), ...
+        'LineStyle', line_styles{idx_style}, ...
+        'Marker', markers{idx_style}, ...
+        'Color', colors(idx_style,:), ...
+        'MarkerEdgeColor', colors(idx_style,:), ...
+        'MarkerFaceColor', 'none', ...
+        'LineWidth', 1.6, ...
+        'MarkerSize', 6);
 end
+
+xlabel(x_label_text);
+ylabel('Average effective spectral efficiency (bit/s/Hz)');
+title(title_text,'FontSize',11);
+
+legend({schemes.name}, ...
+    'Location','southoutside', ...
+    'NumColumns',2, ...
+    'FontSize',8);
+
+grid on;
+box on;
+set(gca,'FontSize',10);
+end
+
 function draw_convergence(conv_results, schemes)
 break_iter = 30; x_end_real = 5000; x_end_plot = 5000; x_break_plot = x_end_plot/3;
 figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 1100 560]);
