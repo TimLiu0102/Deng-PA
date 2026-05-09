@@ -14,10 +14,10 @@ do_K           = false;
 do_N           = false;
 do_M           = false;
 do_Dy          = false;
-do_convergence = true;
+do_convergence = false;
 do_cdf         = false;
 do_final_bar_ab = false;
-do_H2_ab = false;
+do_H2_ab = true;
 do_default_geometry = false;
 do_default_check = false;
 
@@ -476,9 +476,13 @@ else
     area_Dy = params_h2.Dy;
 end
 
-x_grid = linspace(0, area_Dx, 81);
-y_grid = linspace(0, area_Dy, 81);
-z_grid = linspace(0, params_h2.d, 31);
+% 右图提高清晰度：x/y 平面加密。
+% z_grid 对右图清晰度没有直接影响，保持适中即可。
+x_grid = linspace(0, area_Dx, 301);
+y_grid = linspace(0, area_Dy, 301);
+z_grid = linspace(0, params_h2.d, 41);
+
+axis_tick_step = 5;
 
 state = struct();
 state.X = wg_Dy / 2;
@@ -519,75 +523,179 @@ for ia = 1:size(ab_cases,1)
         H3(:,:,iz) = reshape(pow_map, size(Xg));
     end
 
-    figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), 'Position', [100 100 1100 480]);
-
-    subplot(1,2,1);
-    draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy);
-
-    subplot(1,2,2);
     H2_z0 = H3(:,:,1);
     H2_z0_plot = max(H2_z0, 1e-30);
+
+    Hmax = max(H2_z0_plot(:));
+    Hmin = max(Hmax * 1e-4, min(H2_z0_plot(H2_z0_plot > 0)));
+    clim_h2 = [Hmin Hmax];
+
+    figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), ...
+    'Position', [100 100 1220 520]);
+    set(gcf, 'Renderer', 'opengl');
+    
+    subplot(1,2,1);
+    draw_main_lobe_pattern(params_h2, scene, state, ...
+        area_Dx, area_Dy, x_grid, y_grid, H2_z0_plot, clim_h2, axis_tick_step);
+
+    subplot(1,2,2);
     imagesc(y_grid, x_grid, H2_z0_plot);
     set(gca, 'YDir', 'normal');
     set(gca, 'ColorScale', 'log');
+    caxis(clim_h2);
+    colormap(jet);
     hold on;
     plot(state.X, scene.xW, 'w.', 'MarkerSize', 18);
     hold off;
     colorbar;
+
     xlabel('y (m)');
     ylabel('x (m)');
-    title(sprintf('z = 0 plane |H|^2, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
+    title(sprintf('z = 0 plane |H|^2, a=%.2f, b=%.2f', ...
+        params_h2.a, params_h2.b));
+
+    % 右图强制 x:y = 1:1，并且两个坐标轴都显示完整 0~20。
+    xlim([0 area_Dy]);
+    ylim([0 area_Dx]);
+    axis image;
+
+    % x/y 轴使用相同刻度间隔。
+    xticks(0:axis_tick_step:area_Dy);
+    yticks(0:axis_tick_step:area_Dx);
+
+    box on;
+    set(gca,'FontSize',10);
 
     H2_ab.scene_xW = scene.xW;
     H2_ab.H3{ia} = H3;
     H2_ab.H2_z0{ia} = H2_z0;
+    H2_ab.clim_h2{ia} = clim_h2;
 end
 end
 
+function [rx0, ry0] = estimate_lobe_radius_from_H2(x_grid, y_grid, H2_z0, x0, y0)
+Hmax = max(H2_z0(:));
+threshold = Hmax * 10^(-1.5);
 
-function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy)
-pa_pos = [state.X, scene.xW, params_h2.d];
-beam_center = [state.X, scene.xW, 0];
-width_scale = 0.8 + 0.45*(params_h2.a + params_h2.b);
-base_radius = 0.10 * min([area_Dx, area_Dy]);
-beam_len = params_h2.d;
+mask = H2_z0 >= threshold;
 
-[U, V] = meshgrid(linspace(0,2*pi,80), linspace(0,1,80));
-center_z = pa_pos(3) - beam_len * V;
-radius_shape = 0.18 + 0.82 * sin(pi*V).^0.9;
-radius = base_radius * width_scale .* radius_shape;
+if any(mask(:))
+    [idx_x, idx_y] = find(mask);
+    x_sel = x_grid(idx_x);
+    y_sel = y_grid(idx_y);
 
-Y = pa_pos(1) + radius .* cos(U);
-X = pa_pos(2) + radius .* sin(U);
-Z = center_z;
-color_z_top = 1;
-V_color = min(V * beam_len / max(beam_len - color_z_top, eps), 1);
-C = exp(-2.2*(radius./(max(radius(:))+eps)).^2) .* (0.35 + 0.65*V_color);
+    rx0 = 0.5 * (max(x_sel) - min(x_sel));
+    ry0 = 0.5 * (max(y_sel) - min(y_sel));
+else
+    rx0 = 0.10 * max(x_grid);
+    ry0 = 0.10 * max(y_grid);
+end
 
-surf(Y, X, Z, C, 'EdgeColor', 'none', 'FaceAlpha', 0.90);
+% 避免主瓣太细导致三维示意图不好看。
+rx0 = max(rx0, 0.05 * max(x_grid));
+ry0 = max(ry0, 0.05 * max(y_grid));
+
+% 避免极端情况下过大。
+rx0 = min(rx0, 0.22 * max(x_grid));
+ry0 = min(ry0, 0.22 * max(y_grid));
+
+% x0/y0 保留在参数中，后续需要按峰值中心绘制时可以直接改。
+end
+
+
+function draw_main_lobe_pattern(params_h2, scene, state, area_Dx, area_Dy, x_grid, y_grid, H2_z0, clim_h2, axis_tick_step)
+% 基于 z=0 平面的真实 |H|^2 主瓣范围，画一个三维主瓣示意图。
+% 不画阴影，不画地面线框，只保留主瓣本体。
+% 主瓣颜色仍然使用 C + ColorScale='log'，保持原来的颜色对应关系。
+
+x0 = scene.xW;
+y0 = state.X;
+d0 = params_h2.d;
+
+[rx0, ry0] = estimate_lobe_radius_from_H2(x_grid, y_grid, H2_z0, x0, y0);
+
+% 主瓣主体保持与右图一致的椭圆趋势
+rx_max = 1.25 * rx0;
+ry_max = 1.25 * ry0;
+
+rx_min = 0.08 * rx_max;
+ry_min = 0.08 * ry_max;
+
+nu = 160;
+nv = 130;
+[U, V] = meshgrid(linspace(0,2*pi,nu), linspace(0,1,nv));
+
+% V=0 对应 z=0 地面，V=1 对应天线高度 z=d
+Z = d0 * V;
+
+% 半径上下近似对称：z=0 和 z=d 附近收缩，中间最大
+radius_shape = sin(pi * V).^0.85;
+RX = rx_min + (rx_max - rx_min) .* radius_shape;
+RY = ry_min + (ry_max - ry_min) .* radius_shape;
+
+Y = y0 + RY .* cos(U);
+X = x0 + RX .* sin(U);
+
+% 颜色：底部强(红)，中部弱一些(蓝)，顶部更深
+% 保持原来的 C + log ColorScale 颜色对应关系
+log_cmax = log10(clim_h2(2));
+log_cmin = log10(clim_h2(1));
+log_mid  = log_cmax - 0.72 * (log_cmax - log_cmin);
+
+C_log = zeros(size(V));
+idx_low = V <= 0.5;
+idx_high = V > 0.5;
+
+C_log(idx_low) = log_cmax + ...
+    (log_mid - log_cmax) .* (V(idx_low) / 0.5).^0.85;
+
+C_log(idx_high) = log_mid + ...
+    (log_cmin - log_mid) .* ((V(idx_high) - 0.5) / 0.5).^0.90;
+
+C = 10.^C_log;
+
+% ========= 只画三维主瓣 =========
+surf(Y, X, Z, C, ...
+    'EdgeColor', 'none', ...
+    'FaceAlpha', 0.94);
+shading interp;
 hold on;
 
-foot_rx = base_radius * width_scale * 1.05;
-foot_ry = base_radius * width_scale * 0.85;
-theta_fp = linspace(0,2*pi,180);
-Yf = beam_center(1) + foot_ry*cos(theta_fp);
-Xf = beam_center(2) + foot_rx*sin(theta_fp);
-Zf = zeros(size(theta_fp));
-fill3(Yf, Xf, Zf, [0.4 0.8 1.0], 'FaceAlpha', 0.25, 'EdgeColor', [0.2 0.5 0.9], 'LineStyle', '--');
+% 主瓣中心轴和天线位置
+plot3([y0 y0], [x0 x0], [0 d0], 'k--', 'LineWidth', 1.1);
+plot3(y0, x0, d0, 'wo', ...
+    'MarkerFaceColor', 'w', ...
+    'MarkerEdgeColor', 'k', ...
+    'MarkerSize', 7);
 
-plot3([pa_pos(1), beam_center(1)], [pa_pos(2), beam_center(2)], [pa_pos(3), beam_center(3)], 'k--', 'LineWidth', 1.2);
-plot3(pa_pos(1), pa_pos(2), pa_pos(3), 'wo', 'MarkerFaceColor', 'w', 'MarkerSize', 7);
+% 保持左图原来的 log 色标对应关系
+set(gca, 'ColorScale', 'log');
+caxis(clim_h2);
+colormap(jet);
+colorbar;
 
 xlabel('y (m)');
 ylabel('x (m)');
 zlabel('z (m)');
-title(sprintf('3D main lobe pattern, a=%.2f, b=%.2f', params_h2.a, params_h2.b));
-colormap(jet);
+title(sprintf('3D main lobe pattern, a=%.2f, b=%.2f', ...
+    params_h2.a, params_h2.b));
+
+xlim([0 area_Dy]);
+ylim([0 area_Dx]);
+zlim([0 d0]);
+
+xticks(0:axis_tick_step:area_Dy);
+yticks(0:axis_tick_step:area_Dx);
+zticks(0:1:d0);
+
+% z 方向拉高一点，看起来更舒服
+pbaspect([1 1 0.75]);
+
 grid on;
-axis tight;
-daspect([1 1 0.6]);
-view(45,25);
 box on;
+view(45,25);
+set(gca,'FontSize',10);
+
 hold off;
 end
 
