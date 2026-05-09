@@ -17,8 +17,8 @@ do_Dy          = false;
 do_convergence = false;
 do_cdf         = false;
 do_final_bar_ab = false;
-do_H2_ab = true;
-do_default_geometry = false;
+do_H2_ab = false;
+do_default_geometry = true;
 do_default_check = false;
 
 fprintf('\n================ 多方案对比绘图 ================\n');
@@ -820,16 +820,111 @@ for s=1:numel(schemes), r=sort(rate_cells{s}(:)); F=(1:numel(r))/numel(r); plot(
 xlabel('Per-user rate (bit/s/Hz)'); ylabel('CDF'); title('CDF of Per-user Rate','FontSize',11); legend({schemes.name},'Location','southoutside','NumColumns',2,'FontSize',8); grid on; set(gca,'FontSize',10);
 end
 function draw_geometry_case(geo_result)
-params_case=geo_result.params; scene=geo_result.scene; state=geo_result.state; history=geo_result.history; M=params_case.M; user_pos=scene.user_pos; S=state.S;
-if isfield(params_case,'waveguide_Dy'), wg_Dy=params_case.waveguide_Dy; else, wg_Dy=params_case.Dy; end
-if isfield(params_case,'area_Dx'), area_Dx=params_case.area_Dx; else, area_Dx=params_case.Dx; end
-if isfield(params_case,'area_Dy'), area_Dy=params_case.area_Dy; else, area_Dy=params_case.Dy; end
-scatter(user_pos(1,:), user_pos(2,:), 25, 'filled'); hold on; scatter(user_pos(1,S), user_pos(2,S), 70);
-for n=1:params_case.N, line([scene.xW(n),scene.xW(n)],[0,wg_Dy]); plot(scene.xW(n)*ones(1,M),history.X0(n,:),'o'); plot(scene.xW(n)*ones(1,M),state.X(n,:),'x'); end
-x_pa = repmat(scene.xW(:),1,M); x_pa=x_pa(:); y_pa=state.X(:); u=sin(state.theta(:)).*cos(state.phi(:)); v=sin(state.theta(:)).*sin(state.phi(:)); nm=sqrt(u.^2+v.^2); quiver(x_pa,y_pa,u./(nm+eps),v./(nm+eps),0.6,'LineWidth',0.8);
-xlim([0 area_Dx]); ylim([0 area_Dy]); xlabel('x (m)'); ylabel('y (m)'); title('Final PA/User Configuration','FontSize',11);
-legend({'All users','Served users','Waveguide','Initial PA','Final PA','PA orientation'},'Location','eastoutside','FontSize',8); grid on; set(gca,'FontSize',10);
+params_case = geo_result.params;
+scene = geo_result.scene;
+state = geo_result.state;
+
+user_pos = scene.user_pos;
+S = state.S;
+
+if isfield(params_case,'waveguide_Dy')
+    wg_Dy = params_case.waveguide_Dy;
+else
+    wg_Dy = params_case.Dy;
 end
+if isfield(params_case,'area_Dx')
+    area_Dx = params_case.area_Dx;
+else
+    area_Dx = params_case.Dx;
+end
+if isfield(params_case,'area_Dy')
+    area_Dy = params_case.area_Dy;
+else
+    area_Dy = params_case.Dy;
+end
+
+hold on;
+
+% 所有用户
+h_all = scatter(user_pos(1,:), user_pos(2,:), ...
+    30, 'filled', ...
+    'MarkerFaceColor', [0.00 0.45 0.74], ...
+    'MarkerEdgeColor', [0.00 0.45 0.74]);
+
+% 服务用户
+h_served = scatter(user_pos(1,S), user_pos(2,S), ...
+    85, 'o', ...
+    'MarkerEdgeColor', [0.85 0.33 0.10], ...
+    'MarkerFaceColor', 'none', ...
+    'LineWidth', 1.3);
+
+% 波导：用 dummy handle 控制图例，只显示一项
+h_wg = plot(nan, nan, '-', ...
+    'Color', [0.00 0.45 0.74], ...
+    'LineWidth', 1.1);
+
+for n = 1:params_case.N
+    line([scene.xW(n), scene.xW(n)], [0, wg_Dy], ...
+        'Color', [0.00 0.45 0.74], ...
+        'LineWidth', 1.0, ...
+        'HandleVisibility', 'off');
+end
+
+% 只画最终 PA 位置，不再画 initial PA / final PA 两套
+x_pa = repmat(scene.xW(:), 1, params_case.M);
+x_pa = x_pa(:);
+y_pa = state.X(:);
+
+h_pa = scatter(x_pa, y_pa, ...
+    75, 'o', ...
+    'MarkerEdgeColor', [0.49 0.18 0.56], ...
+    'MarkerFaceColor', 'none', ...
+    'LineWidth', 1.2);
+
+% PA 朝向箭头，长度改为原来的 3/4：0.6 -> 0.3
+u = sin(state.theta(:)) .* cos(state.phi(:));
+v = sin(state.theta(:)) .* sin(state.phi(:));
+nm = sqrt(u.^2 + v.^2);
+
+orientation_scale = 0.3;
+quiver(x_pa, y_pa, ...
+    u./(nm+eps), v./(nm+eps), ...
+    orientation_scale, ...
+    'Color', [0.47 0.67 0.19], ...
+    'LineWidth', 1.1, ...
+    'MaxHeadSize', 0.8, ...
+    'HandleVisibility', 'off');
+
+% 用一个 dummy quiver 给 PA orientation 做图例图标，
+% 这样箭头会显示在线段头部，而不是线段中间。
+h_orient = quiver(area_Dx + 10, area_Dy + 10, ...
+    1, 0, ...
+    0, ...
+    'Color', [0.47 0.67 0.19], ...
+    'LineWidth', 1.1, ...
+    'MaxHeadSize', 1.2, ...
+    'AutoScale', 'off');
+
+% dummy quiver 放在坐标轴范围外，后面 xlim/ylim 会把它裁掉，只保留图例效果。
+
+xlim([0 area_Dx]);
+ylim([0 area_Dy]);
+xlabel('x (m)');
+ylabel('y (m)');
+title('Final PA/User Configuration','FontSize',11);
+
+legend([h_all, h_served, h_wg, h_pa, h_orient], ...
+    {'All users', 'Served users', 'Waveguide', 'PA position', 'PA orientation'}, ...
+    'Location', 'eastoutside', ...
+    'FontSize', 8);
+
+grid on;
+box on;
+set(gca,'FontSize',10);
+
+hold off;
+end
+
 function sweep_id = get_sweep_id(sweep_type)
 if strcmp(sweep_type,'snr'), sweep_id=1; elseif strcmp(sweep_type,'K'), sweep_id=2; elseif strcmp(sweep_type,'N'), sweep_id=3; elseif strcmp(sweep_type,'M'), sweep_id=4; elseif strcmp(sweep_type,'Dy'), sweep_id=8; else, sweep_id=9; end
 end
