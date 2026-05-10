@@ -9,14 +9,14 @@ end
 plot_mode = 'full';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
-do_snr         = false;
+do_snr         = true;
 do_K           = false;
 do_N           = false;
 do_M           = false;
 do_Dy          = false;
-do_convergence = true;
+do_convergence = false;
 do_cdf         = false;
-do_final_bar_ab = true;
+do_final_bar_ab = false;
 do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
