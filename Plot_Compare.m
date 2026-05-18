@@ -9,13 +9,13 @@ end
 plot_mode = 'full';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
-do_snr         = true;
+do_snr         = false;
 do_K           = false;
 do_N           = false;
 do_M           = false;
 do_Dy          = false;
 do_convergence = false;
-do_cdf         = false;
+do_cdf         = true;
 do_final_bar_ab = false;
 do_H2_ab = false;
 do_default_geometry = false;
@@ -60,7 +60,7 @@ end
 if strcmp(plot_mode, 'debug')
     MC = 3;
 else
-    MC = 100;
+    MC = 300;
 end
 
 K_vec = unique(max(K_vec, base_params.K_serv));
