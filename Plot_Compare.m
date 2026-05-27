@@ -460,27 +460,30 @@ if isfield(params_h2,'waveguide_Dx')
 else
     wg_Dx = params_h2.Dx;
 end
+
 if isfield(params_h2,'waveguide_Dy')
     wg_Dy = params_h2.waveguide_Dy;
 else
     wg_Dy = params_h2.Dy;
 end
+
 if isfield(params_h2,'area_Dx')
     area_Dx = params_h2.area_Dx;
 else
     area_Dx = params_h2.Dx;
 end
+
 if isfield(params_h2,'area_Dy')
     area_Dy = params_h2.area_Dy;
 else
     area_Dy = params_h2.Dy;
 end
 
-% 右图提高清晰度：x/y 平面加密。
-% z_grid 对右图清晰度没有直接影响，保持适中即可。
+% 右图清晰度：x/y 平面加密。
+% 左图 isosurface 也直接使用同一组三维网格数据。
 x_grid = linspace(0, area_Dx, 301);
 y_grid = linspace(0, area_Dy, 301);
-z_grid = linspace(0, params_h2.d, 41);
+z_grid = linspace(0, params_h2.d, 61);
 
 axis_tick_step = 5;
 
@@ -526,24 +529,27 @@ for ia = 1:size(ab_cases,1)
     H2_z0 = H3(:,:,1);
     H2_z0_plot = max(H2_z0, 1e-30);
 
+    % 用地面 z=0 平面的动态范围作为统一色标参考，避免 PA 附近局部极大值主导显示。
     Hmax = max(H2_z0_plot(:));
     Hmin = max(Hmax * 1e-4, min(H2_z0_plot(H2_z0_plot > 0)));
     clim_h2 = [Hmin Hmax];
 
     figure('Name', sprintf('Fig_H2_3D_ab_%d', ia), ...
-    'Position', [100 100 1220 520]);
+        'Position', [100 100 1220 520]);
     set(gcf, 'Renderer', 'opengl');
-    
-    subplot(1,2,1);
-    draw_main_lobe_pattern(params_h2, scene, state, ...
-        area_Dx, area_Dy, x_grid, y_grid, H2_z0_plot, clim_h2, axis_tick_step);
 
+    % ================= 左图：真实 H3 三维功率场的多层等值面 =================
+    subplot(1,2,1);
+    draw_main_lobe_isosurface(params_h2, scene, state, ...
+        area_Dx, area_Dy, x_grid, y_grid, z_grid, H3, clim_h2, axis_tick_step);
+
+    % ================= 右图：z=0 地面功率分布 =================
     subplot(1,2,2);
     imagesc(y_grid, x_grid, H2_z0_plot);
     set(gca, 'YDir', 'normal');
     set(gca, 'ColorScale', 'log');
     caxis(clim_h2);
-    colormap(jet);
+    colormap(gca, jet);
     hold on;
     plot(state.X, scene.xW, 'w.', 'MarkerSize', 18);
     hold off;
@@ -551,15 +557,12 @@ for ia = 1:size(ab_cases,1)
 
     xlabel('y (m)');
     ylabel('x (m)');
-    title(sprintf('z = 0 plane |H|^2, a=%.2f, b=%.2f', ...
-        params_h2.a, params_h2.b));
 
-    % 右图强制 x:y = 1:1，并且两个坐标轴都显示完整 0~20。
+
     xlim([0 area_Dy]);
     ylim([0 area_Dx]);
     axis image;
 
-    % x/y 轴使用相同刻度间隔。
     xticks(0:axis_tick_step:area_Dy);
     yticks(0:axis_tick_step:area_Dx);
 
@@ -572,6 +575,110 @@ for ia = 1:size(ab_cases,1)
     H2_ab.clim_h2{ia} = clim_h2;
 end
 end
+
+
+function draw_main_lobe_isosurface(params_h2, scene, state, ...
+    area_Dx, area_Dy, x_grid, y_grid, z_grid, H3, clim_h2, axis_tick_step)
+% 基于真实三维 |H|^2 数据 H3 绘制多层等值面。
+% 外层为低功率层，内层为高功率层；颜色只用于区分不同等值面层级。
+% 右侧 ground-plane heatmap 保留真实连续色标。
+
+[Y3, X3, Z3] = meshgrid(y_grid, x_grid, z_grid);
+
+P = max(H3, 1e-30);
+
+Pmax = clim_h2(2);
+Pmin = clim_h2(1);
+
+% 多层等值面：外层低功率，内层高功率。
+% 可根据视觉效果微调这些比例。
+levels = Pmax * [1e-3, 1e-2, 1e-1, 0.5];
+levels = levels(levels > Pmin & levels < max(P(:)));
+
+% 如果由于参数导致有效 levels 太少，则自动补充。
+if numel(levels) < 2
+    levels = logspace(log10(Pmin), log10(min(Pmax, max(P(:)))), 4);
+    levels = levels(levels > Pmin & levels < max(P(:)));
+end
+
+% 从外层到内层：蓝 -> 青 -> 黄 -> 红。
+layer_colors = [
+    0.10 0.35 0.95;   % outer: blue
+    0.00 0.75 0.90;   % middle-low: cyan
+    0.95 0.75 0.05;   % middle-high: yellow
+    0.90 0.10 0.04    % inner: red
+];
+
+% 外层更透明，内层更实，避免整体发灰。
+layer_alpha = [0.13, 0.20, 0.32, 0.72];
+
+hold on;
+
+for ii = 1:numel(levels)
+    fv = isosurface(Y3, X3, Z3, P, levels(ii));
+    if isempty(fv.vertices)
+        continue;
+    end
+
+    h = patch(fv);
+    isonormals(Y3, X3, Z3, P, h);
+
+    color_idx = min(ii, size(layer_colors,1));
+    alpha_idx = min(ii, numel(layer_alpha));
+
+    h.FaceColor = layer_colors(color_idx,:);
+    h.EdgeColor = 'none';
+    h.FaceAlpha = layer_alpha(alpha_idx);
+
+    % 降低 lighting 对颜色的“洗灰”影响。
+    h.FaceLighting = 'gouraud';
+    h.AmbientStrength = 0.70;
+    h.DiffuseStrength = 0.35;
+    h.SpecularStrength = 0.05;
+end
+
+% PA 位置和主轴。
+y0 = state.X;
+x0 = scene.xW;
+d0 = params_h2.d;
+
+plot3([y0 y0], [x0 x0], [0 d0], 'k--', 'LineWidth', 1.1);
+plot3(y0, x0, d0, 'wo', ...
+    'MarkerFaceColor', 'w', ...
+    'MarkerEdgeColor', 'k', ...
+    'MarkerSize', 7);
+
+xlabel('y (m)');
+ylabel('x (m)');
+zlabel('z (m)');
+
+
+xlim([0 area_Dy]);
+ylim([0 area_Dx]);
+zlim([0 d0]);
+
+xticks(0:axis_tick_step:area_Dy);
+yticks(0:axis_tick_step:area_Dx);
+zticks(0:1:d0);
+
+pbaspect([1 1 0.75]);
+view(45,25);
+
+grid on;
+box on;
+set(gca,'FontSize',10);
+
+% 双光源增强立体感。
+camlight headlight;
+camlight right;
+lighting gouraud;
+material dull;
+
+% 左图不放 colorbar，因为颜色表示离散等值面层级；
+% 右图保留 colorbar 展示真实 ground-plane |H|^2 数值。
+hold off;
+end
+
 
 function [rx0, ry0] = estimate_lobe_radius_from_H2(x_grid, y_grid, H2_z0, x0, y0)
 Hmax = max(H2_z0(:));
