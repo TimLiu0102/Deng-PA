@@ -132,14 +132,14 @@ params.seed = 7;
 rng(params.seed);
 
 % ======================== 算法方案开关 ========================
-scheme_mode = 'fixed_antenna_ws';   % 'AO' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws' | 'fixedX' | 'w_only'
+scheme_mode = 'AO';   % 'AO' | 'sa_joint' | 'pso_joint' | 'hg_multiuser' | 'fixed_antenna_ws' | 'fixedX' | 'w_only'
 
 %% 第3部分：场景生成与问题定义
 scene = Channel_model('build_scene', params, [], [], []);
 model = Problem_formulation(params, scene);
 
 %% 第4部分：初始化
-init_mode = 'uniform_fixed';   % 'paper' | 'uniform_neutral' | 'uniform_fixed' | 'fixedX' | 'reffX' | 'margin' | 'random' | 'uniform'
+init_mode = 'paper';   % 'paper' | 'uniform_neutral' | 'uniform_fixed' | 'fixedX' | 'reffX' | 'margin' | 'random' | 'uniform'
 
 if strcmp(init_mode, 'paper')
     state = Initialization(params, scene, model);
@@ -678,10 +678,10 @@ result.model = model;
 
 %% 第8部分：结果显示方式切换
 % 方式1：新的论文式多方案对比图（默认启用）
-compare_result = Plot_Compare(params, scene);
-result.compare_result = compare_result;
+% compare_result = Plot_Compare(params, scene);
+% result.compare_result = compare_result;
 
 % 方式2：原来的单次仿真结果图
-% Print_and_Plot(params, scene, model, result);
+Print_and_Plot(params, scene, model, result);
 
 end

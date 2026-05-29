@@ -77,7 +77,7 @@ for k = 1:K
         gamma_star = sqrt(A_kn * params.alphaW^2 / den);
 
         for m = 1:M
-            y_star(k,n,m) = yk - gamma_star;
+            y_star(k,n,m) = max(yk - gamma_star, 0);
             p_star = [scene.xW(n); y_star(k,n,m); params.d];
             d_star = norm(qk - p_star);
 
