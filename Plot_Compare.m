@@ -120,14 +120,14 @@ end
 if do_snr
     [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, snr_dB_vec, 'snr', MC, user_pos_pools);
     figure('Name', 'Fig1_SNR', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(snr_dB_vec, mean_R, std_R, schemes, 'SNR (dB)', 'Effective Spectral Efficiency vs. SNR');
+    draw_mean_error_curve(snr_dB_vec, mean_R, std_R, schemes, 'SNR (dB)', 'Effective Spectral Efficiency vs. SNR', MC);
     compare_result.snr = pack_sweep_result(snr_dB_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_K
     [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, K_vec, 'K', MC, user_pos_pools);
     figure('Name', 'Fig2_K', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(K_vec, mean_R, std_R, schemes, 'Number of users K', 'Effective Spectral Efficiency vs. Number of Users');
+    draw_mean_error_curve(K_vec, mean_R, std_R, schemes, 'Number of users K', 'Effective Spectral Efficiency vs. Number of Users', MC);
     compare_result.K = pack_sweep_result(K_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
@@ -136,28 +136,28 @@ if do_N
 
     [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(params_N, schemes, N_vec, 'N', MC, user_pos_pools);
     figure('Name', 'Fig3_N', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Effective Spectral Efficiency vs. Number of Waveguides');
+    draw_mean_error_curve(N_vec, mean_R, std_R, schemes, 'Number of waveguides N', 'Effective Spectral Efficiency vs. Number of Waveguides', MC);
     compare_result.N = pack_sweep_result(N_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_M
     [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, M_vec, 'M', MC, user_pos_pools);
     figure('Name', 'Fig4_M', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(M_vec, mean_R, std_R, schemes, 'Number of PAs per waveguide M', 'Effective Spectral Efficiency vs. Number of PAs');
+    draw_mean_error_curve(M_vec, mean_R, std_R, schemes, 'Number of PAs per waveguide M', 'Effective Spectral Efficiency vs. Number of PAs', MC);
     compare_result.M = pack_sweep_result(M_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_Dy
     [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, Dy_vec, 'Dy', MC, user_pos_pools);
     figure('Name', 'Fig5_Dy', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(Dy_vec, mean_R, std_R, schemes, 'Waveguide length / PA movable range D_y (m)', 'Effective Spectral Efficiency vs. Waveguide Length');
+    draw_mean_error_curve(Dy_vec, mean_R, std_R, schemes, 'Waveguide length / PA movable range D_y (m)', 'Effective Spectral Efficiency vs. Waveguide Length', MC);
     compare_result.Dy = pack_sweep_result(Dy_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_Tf
     [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, Tf_vec, 'Tf', MC, user_pos_pools);
     figure('Name', 'Fig_Tf', 'Position', [100 100 760 520]);
-    draw_mean_error_curve(Tf_vec, mean_R, std_R, schemes, 'Frame duration T_f (s)', 'Effective Spectral Efficiency vs. Frame Duration');
+    draw_mean_error_curve(Tf_vec, mean_R, std_R, schemes, 'Frame duration T_f (s)', 'Effective Spectral Efficiency vs. Frame Duration', MC);
     compare_result.Tf = pack_sweep_result(Tf_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
@@ -900,42 +900,56 @@ function scene_case = build_scene_with_fixed_users(params_case, user_pos_pool)
 scene_case = Channel_model('build_scene', params_case, [], [], []); scene_case.user_pos = user_pos_pool(:,1:params_case.K); scene_case.K=params_case.K; scene_case.M=params_case.M; scene_case.N=params_case.N;
 end
 
-function draw_mean_error_curve(x_vec, mean_R, std_R, schemes, x_label_text, title_text)
-colors = [0.00 0.45 0.74;    % Proposed AO: blue
-          0.85 0.33 0.10;    % Fixed W+S: orange
-          0.93 0.69 0.13;    % Fixed W+S reW: yellow
-          0.49 0.18 0.56;    % HG-Rsum: purple
-          0.47 0.67 0.19];   % SA joint: green
+function draw_mean_error_curve(x_vec, mean_R, std_R, schemes, x_label_text, title_text, MC)
+colors = [
+    235, 134, 103;    % Proposed RA-AO
+    152, 127, 175;    % Fixed PA-S
+    134, 167, 208;    % Fixed PA-S + WMMSE
+    228, 184, 120;    % HG-SR
+    111, 165, 128     % SA joint search
+] / 255;
 
-line_styles = {'-', '--', '-.', ':', '-'};
 markers = {'o', 's', '^', 'd', 'v'};
+
+display_names = {'Proposed RA-AO', ...
+                 'Fixed PA-S', ...
+                 'Fixed PA-S + WMMSE', ...
+                 'HG-SR', ...
+                 'SA joint search'};
+
+ci95 = 1.96 * std_R / sqrt(MC);
 
 hold on;
 for s = 1:numel(schemes)
-    idx_style = mod(s-1, size(colors,1)) + 1;
-
-    plot(x_vec, mean_R(:,s), ...
+    errorbar(x_vec, mean_R(:,s), ci95(:,s), ...
         'LineStyle', '-', ...
-        'Marker', markers{idx_style}, ...
-        'Color', colors(idx_style,:), ...
-        'MarkerEdgeColor', colors(idx_style,:), ...
+        'Marker', markers{s}, ...
+        'Color', colors(s,:), ...
+        'MarkerEdgeColor', colors(s,:), ...
         'MarkerFaceColor', 'none', ...
-        'LineWidth', 1.6, ...
-        'MarkerSize', 6);
+        'LineWidth', 2.0, ...
+        'MarkerSize', 6.5, ...
+        'CapSize', 6, ...
+        'DisplayName', display_names{s});
 end
 
 xlabel(x_label_text);
 ylabel('Average effective spectral efficiency (bit/s/Hz)');
-title(title_text,'FontSize',11);
+title('');
 
-legend({schemes.name}, ...
-    'Location','southoutside', ...
-    'NumColumns',2, ...
-    'FontSize',8);
+legend('show', ...
+    'Location', 'best', ...
+    'FontSize', 8);
 
 grid on;
 box on;
-set(gca,'FontSize',10);
+
+ax = gca;
+ax.FontSize = 10;
+ax.LineWidth = 1.0;
+ax.GridAlpha = 0.18;
+
+hold off;
 end
 
 function draw_convergence(conv_results, schemes)
