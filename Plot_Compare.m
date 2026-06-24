@@ -14,10 +14,11 @@ do_K           = false;
 do_N           = false;
 do_M           = false;
 do_Dy          = false;
+do_Tf          = true;
 do_convergence = false;
 do_cdf         = false;
 do_final_bar_ab = false;
-do_H2_ab = true;
+do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
 
@@ -36,6 +37,7 @@ K_base_vec      = [8 16 24 32 48 64];
 N_base_vec      = [2 4 6 8 10 12];
 M_base_vec      = [2 4 6 8];
 Dy_base_vec     = [4 8 12 16 20];
+Tf_base_vec     = [3 5 8 10];
 add_default_point = true;
 
 if isfield(base_params, 'waveguide_Dy')
@@ -43,18 +45,21 @@ if isfield(base_params, 'waveguide_Dy')
 else
     Dy_default = base_params.Dy;
 end
+
 if add_default_point
     snr_dB_vec = unique(sort([snr_dB_base_vec snr_ref_dB]));
     K_vec      = unique(sort([K_base_vec base_params.K]));
     N_vec      = unique(sort([N_base_vec base_params.N]));
     M_vec      = unique(sort([M_base_vec base_params.M]));
     Dy_vec     = unique(sort([Dy_base_vec Dy_default]));
+    Tf_vec     = unique(sort([Tf_base_vec base_params.T_f]));
 else
     snr_dB_vec = snr_dB_base_vec;
     K_vec      = K_base_vec;
     N_vec      = N_base_vec;
     M_vec      = M_base_vec;
     Dy_vec     = Dy_base_vec;
+    Tf_vec     = Tf_base_vec;
 end
 
 if strcmp(plot_mode, 'debug')
@@ -147,6 +152,13 @@ if do_Dy
     figure('Name', 'Fig5_Dy', 'Position', [100 100 760 520]);
     draw_mean_error_curve(Dy_vec, mean_R, std_R, schemes, 'Waveguide length / PA movable range D_y (m)', 'Effective Spectral Efficiency vs. Waveguide Length');
     compare_result.Dy = pack_sweep_result(Dy_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
+end
+
+if do_Tf
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, Tf_vec, 'Tf', MC, user_pos_pools);
+    figure('Name', 'Fig_Tf', 'Position', [100 100 760 520]);
+    draw_mean_error_curve(Tf_vec, mean_R, std_R, schemes, 'Frame duration T_f (s)', 'Effective Spectral Efficiency vs. Frame Duration');
+    compare_result.Tf = pack_sweep_result(Tf_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
 if do_convergence
@@ -246,6 +258,8 @@ elseif strcmp(sweep_type, 'Dy')
     else
         params_case.Dy = x_value;
     end
+elseif strcmp(sweep_type, 'Tf')
+    params_case.T_f = x_value;
 else
     error('unsupported sweep_type');
 end
