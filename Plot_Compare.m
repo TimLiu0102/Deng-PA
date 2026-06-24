@@ -9,19 +9,22 @@ end
 plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
-do_snr         = false;
+do_snr         = true;
 do_K           = false;
 do_N           = false;
-do_M           = false;
+do_M           = true;
 do_Dy          = false;
 do_Tf          = true;
-do_speed       = false;
+do_speed       = true;
 do_convergence = false;
 do_cdf         = false;
 do_final_bar_ab = false;
 do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
+save_figures = true;
+save_root = 'figures_compare';
+save_png_resolution = 600;
 
 fprintf('\n================ 多方案对比绘图 ================\n');
 
@@ -67,9 +70,9 @@ else
 end
 
 if strcmp(plot_mode, 'debug')
-    MC = 1;
+    MC = 3;
 else
-    MC = 300;
+    MC = 100;
 end
 
 K_vec = unique(max(K_vec, base_params.K_serv));
@@ -231,6 +234,40 @@ end
 if do_H2_ab
     H2_ab = draw_H2_ab_cases(base_params);
     compare_result.H2_ab = H2_ab;
+end
+
+if save_figures
+    time_tag = datestr(now, 'yyyymmdd_HHMMSS');
+    save_dir = fullfile(save_root, ['run_' time_tag]);
+
+    if ~exist(save_dir, 'dir')
+        mkdir(save_dir);
+    end
+
+    figs = findall(0, 'Type', 'figure');
+    [~, idx_sort] = sort([figs.Number]);
+    figs = figs(idx_sort);
+
+    for i = 1:numel(figs)
+        fig = figs(i);
+        figure(fig);
+
+        fig_name = get(fig, 'Name');
+        if isempty(fig_name)
+            fig_name = sprintf('Fig_%02d', i);
+        end
+
+        fig_name = regexprep(fig_name, '[^\w]', '_');
+        fig_name = sprintf('%02d_%s', i, fig_name);
+
+        savefig(fig, fullfile(save_dir, [fig_name '.fig']));
+        exportgraphics(fig, fullfile(save_dir, [fig_name '.pdf']), 'ContentType', 'vector');
+        exportgraphics(fig, fullfile(save_dir, [fig_name '.png']), 'Resolution', save_png_resolution);
+    end
+
+    save(fullfile(save_dir, 'compare_result.mat'), 'compare_result');
+
+    fprintf('图像已保存到文件夹：%s\n', save_dir);
 end
 
 end
