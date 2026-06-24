@@ -15,6 +15,7 @@ do_N           = false;
 do_M           = false;
 do_Dy          = false;
 do_Tf          = true;
+do_speed       = false;
 do_convergence = false;
 do_cdf         = false;
 do_final_bar_ab = false;
@@ -38,6 +39,7 @@ N_base_vec      = [2 4 6 8 10 12];
 M_base_vec      = [2 4 6 8];
 Dy_base_vec     = [4 8 12 16 20];
 Tf_base_vec     = [3 5 8 10];
+speed_scale_base_vec = [0.5 1 2 3];
 add_default_point = true;
 
 if isfield(base_params, 'waveguide_Dy')
@@ -47,19 +49,21 @@ else
 end
 
 if add_default_point
-    snr_dB_vec = unique(sort([snr_dB_base_vec snr_ref_dB]));
-    K_vec      = unique(sort([K_base_vec base_params.K]));
-    N_vec      = unique(sort([N_base_vec base_params.N]));
-    M_vec      = unique(sort([M_base_vec base_params.M]));
-    Dy_vec     = unique(sort([Dy_base_vec Dy_default]));
-    Tf_vec     = unique(sort([Tf_base_vec base_params.T_f]));
+    snr_dB_vec      = unique(sort([snr_dB_base_vec snr_ref_dB]));
+    K_vec           = unique(sort([K_base_vec base_params.K]));
+    N_vec           = unique(sort([N_base_vec base_params.N]));
+    M_vec           = unique(sort([M_base_vec base_params.M]));
+    Dy_vec          = unique(sort([Dy_base_vec Dy_default]));
+    Tf_vec          = unique(sort([Tf_base_vec base_params.T_f]));
+    speed_scale_vec = unique(sort([speed_scale_base_vec 1]));
 else
-    snr_dB_vec = snr_dB_base_vec;
-    K_vec      = K_base_vec;
-    N_vec      = N_base_vec;
-    M_vec      = M_base_vec;
-    Dy_vec     = Dy_base_vec;
-    Tf_vec     = Tf_base_vec;
+    snr_dB_vec      = snr_dB_base_vec;
+    K_vec           = K_base_vec;
+    N_vec           = N_base_vec;
+    M_vec           = M_base_vec;
+    Dy_vec          = Dy_base_vec;
+    Tf_vec          = Tf_base_vec;
+    speed_scale_vec = speed_scale_base_vec;
 end
 
 if strcmp(plot_mode, 'debug')
@@ -187,6 +191,13 @@ if do_Tf
     compare_result.Tf = pack_sweep_result(Tf_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
 end
 
+if do_speed
+    [mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum] = run_sweep(base_params, schemes, speed_scale_vec, 'speed', MC, user_pos_pools);
+    figure('Name', 'Fig_Speed', 'Position', [100 100 760 520]);
+    draw_mean_error_curve(speed_scale_vec, mean_R, std_R, schemes, 'Reconfiguration speed scaling factor \xi', 'Effective Spectral Efficiency vs. Reconfiguration Speed', MC);
+    compare_result.speed = pack_sweep_result(speed_scale_vec, mean_R, std_R, R_all, mean_R_sum, std_R_sum, R_all_sum);
+end
+
 if do_convergence
     conv_results = run_convergence_cases(base_params, schemes, MC, user_pos_pools);
     draw_convergence(conv_results, schemes);
@@ -286,6 +297,10 @@ elseif strcmp(sweep_type, 'Dy')
     end
 elseif strcmp(sweep_type, 'Tf')
     params_case.T_f = x_value;
+elseif strcmp(sweep_type, 'speed')
+    params_case.v_PA = x_value * base_params.v_PA;
+    params_case.omega_theta = x_value * base_params.omega_theta;
+    params_case.omega_phi = x_value * base_params.omega_phi;
 else
     error('unsupported sweep_type');
 end
