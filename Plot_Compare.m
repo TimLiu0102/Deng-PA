@@ -6,19 +6,19 @@ if nargin < 2 || isempty(base_scene)
     base_scene = Channel_model('build_scene', base_params, [], [], []);
 end
 
-plot_mode = 'debug';   % 'debug' 或 'full'
+plot_mode = 'full';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
-do_snr         = true;
+do_snr         = false;
 do_K           = false;
 do_N           = false;
-do_M           = true;
+do_M           = false;
 do_Dy          = false;
-do_Tf          = true;
-do_speed       = true;
+do_Tf          = false;
+do_speed       = false;
 do_convergence = false;
 do_cdf         = false;
-do_final_bar_ab = false;
+do_final_bar_ab = true;
 do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
@@ -227,7 +227,7 @@ end
 
 if do_final_bar_ab
     final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC, user_pos_pools);
-    draw_final_bar_ab(final_bar_ab, schemes);
+    draw_final_bar_ab(final_bar_ab, schemes, MC);
     compare_result.final_bar_ab = final_bar_ab;
 end
 
@@ -491,35 +491,54 @@ final_bar_ab.mean_R_sum_ab = squeeze(mean(Rsum,3)); final_bar_ab.std_R_sum_ab = 
 final_bar_ab.mean_R_eff_ab = squeeze(mean(Reff,3)); final_bar_ab.std_R_eff_ab = squeeze(std(Reff,0,3));
 end
 
-function draw_final_bar_ab(final_bar_ab, schemes)
+function draw_final_bar_ab(final_bar_ab, schemes, MC)
+colors = [
+    235, 134, 103;    % Proposed RA-AO
+    152, 127, 175;    % Fixed PA-S
+    134, 167, 208;    % Fixed PA-S + WMMSE
+    228, 184, 120;    % HG-SR
+    111, 165, 128     % SA joint search
+] / 255;
+
+display_names = {'Proposed RA-AO', ...
+                 'Fixed PA-S', ...
+                 'Fixed PA-S + WMMSE', ...
+                 'HG-SR', ...
+                 'SA joint search'};
+
 for i = 1:2
     figure('Name', sprintf('Fig_FinalBar_ab_%d', i), ...
-        'Position', [100 100 900 520]);
+        'Position', [100 100 760 520]);
 
-    Y = [final_bar_ab.mean_R_sum_ab(i,:).', ...
-         final_bar_ab.mean_R_eff_ab(i,:).'];
+    Y = final_bar_ab.mean_R_eff_ab(i,:).';
+    ci95 = 1.96 * final_bar_ab.std_R_eff_ab(i,:).' / sqrt(MC);
 
-    hb = bar(Y, 'grouped', 'BarWidth', 0.72);
+    x = 1:numel(schemes);
+
+    hb = bar(x, Y, 0.62, ...
+        'FaceColor', 'flat', ...
+        'EdgeColor', 'none');
     hold on;
 
-    hb(1).FaceColor = [0.00 0.45 0.74];
-    hb(2).FaceColor = [0.85 0.33 0.10];
-    hb(1).EdgeColor = 'none';
-    hb(2).EdgeColor = 'none';
+    for s = 1:numel(schemes)
+        hb.CData(s,:) = colors(s,:);
+    end
 
-    xticks(1:numel(schemes));
-    xticklabels({schemes.name});
+    errorbar(x, Y, ci95, ...
+        'k', ...
+        'LineStyle', 'none', ...
+        'LineWidth', 1.1, ...
+        'CapSize', 6, ...
+        'HandleVisibility', 'off');
+
+    xticks(x);
+    xticklabels(display_names(1:numel(schemes)));
     xtickangle(25);
 
-    ylabel('Rate (bit/s/Hz)');
-    title(sprintf('Final performance, a=%.2f, b=%.2f', ...
-        final_bar_ab.ab_cases(i,1), final_bar_ab.ab_cases(i,2)));
+    ylabel('Average effective spectral efficiency (bit/s/Hz)');
+    title('');
 
-    legend({'R_{sum}', 'R_{eff}'}, ...
-        'Location', 'northoutside', ...
-        'Orientation', 'horizontal');
-
-    ymax = max(Y(:));
+    ymax = max(Y + ci95);
     ylim([0, 1.15 * ymax]);
 
     grid on;
@@ -528,7 +547,7 @@ for i = 1:2
     ax.YGrid = 'on';
     ax.GridAlpha = 0.18;
     ax.LineWidth = 1.0;
-    ax.FontSize = 11;
+    ax.FontSize = 10;
     box on;
 
     hold off;
