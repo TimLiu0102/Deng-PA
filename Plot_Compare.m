@@ -18,7 +18,8 @@ do_Tf          = false;
 do_speed       = false;
 do_convergence = false;
 do_cdf         = false;
-do_final_bar_ab = true;
+do_final_bar_ab = false;
+do_serial_sensitivity = true;
 do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
@@ -70,7 +71,7 @@ else
 end
 
 if strcmp(plot_mode, 'debug')
-    MC = 3;
+    MC = 2;
 else
     MC = 100;
 end
@@ -229,6 +230,12 @@ if do_final_bar_ab
     final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC, user_pos_pools);
     draw_final_bar_ab(final_bar_ab, schemes, MC);
     compare_result.final_bar_ab = final_bar_ab;
+end
+
+if do_serial_sensitivity
+    serial_sensitivity = run_serial_sensitivity_case(base_params, schemes, MC, user_pos_pools);
+    draw_serial_sensitivity(serial_sensitivity, MC);
+    compare_result.serial_sensitivity = serial_sensitivity;
 end
 
 if do_H2_ab
@@ -467,6 +474,109 @@ h = struct(); h.X0=state.X; h.theta0=state.theta; h.phi0=state.phi; h.S0=state.S
 h.R_sum=sum(r0); h.R_eff=Reff0; h.T_X=d0.T_X; h.T_theta=d0.T_theta; h.T_phi=d0.T_phi; h.T_rec=d0.T_rec; h.time_factor=d0.time_factor;
 h.R_after_W=[]; h.R_after_angle=[]; h.R_after_X=[]; h.R_after_S=[]; h.R_eff_after_W=[]; h.R_eff_after_angle=[]; h.R_eff_after_X=[]; h.R_eff_after_S=[];
 h.S_cells={}; h.X_cells={}; h.theta_cells={}; h.phi_cells={}; h.DEBUG_X_cells={}; h.swap_flag=false;
+end
+
+function serial_sensitivity = run_serial_sensitivity_case(base_params, schemes, MC, user_pos_pools)
+idx_scheme = 1;   % Proposed RA-AO
+
+R_zero = zeros(MC,1);
+R_parallel = zeros(MC,1);
+R_serial = zeros(MC,1);
+
+T_parallel = zeros(MC,1);
+T_serial = zeros(MC,1);
+
+for mc = 1:MC
+    user_pos_pool = user_pos_pools{mc};
+    scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
+
+    init_seed_case = base_params.seed + 20000 + mc;
+    alg_seed_case  = base_params.seed + 30000 + 100*idx_scheme + mc;
+
+    out = run_one_case(base_params, ...
+        schemes(idx_scheme).init_mode, ...
+        schemes(idx_scheme).alg_mode, ...
+        init_seed_case, alg_seed_case, scene_case);
+
+    Rsum = out.final_R_sum;
+    detail = out.final_detail;
+
+    T_parallel(mc) = detail.T_rec;
+    T_serial(mc) = detail.T_X + detail.T_theta + detail.T_phi;
+
+    time_factor_serial = max(0, 1 - T_serial(mc) / base_params.T_f);
+
+    R_zero(mc) = Rsum;
+    R_parallel(mc) = out.final_R_eff;
+    R_serial(mc) = time_factor_serial * Rsum;
+end
+
+R_all = [R_zero, R_parallel, R_serial];
+
+serial_sensitivity.labels = {'Zero reconfiguration', ...
+                             'Parallel reconfiguration', ...
+                             'Serial reconfiguration'};
+serial_sensitivity.R_all = R_all;
+serial_sensitivity.mean_R = mean(R_all, 1);
+serial_sensitivity.std_R = std(R_all, 0, 1);
+serial_sensitivity.T_parallel = T_parallel;
+serial_sensitivity.T_serial = T_serial;
+serial_sensitivity.mean_T_parallel = mean(T_parallel);
+serial_sensitivity.mean_T_serial = mean(T_serial);
+end
+
+
+function draw_serial_sensitivity(serial_sensitivity, MC)
+colors = [
+    115, 115, 115;    % Zero reconfiguration
+    235, 134, 103;       % Parallel reconfiguration
+    196, 188, 135        % Serial reconfiguration
+] / 255;
+
+Y = serial_sensitivity.mean_R(:);
+ci95 = 1.96 * serial_sensitivity.std_R(:) / sqrt(MC);
+
+x = 1:numel(Y);
+
+figure('Name', 'Fig_Serial_Reconfiguration', ...
+    'Position', [100 100 760 520]);
+
+hb = bar(x, Y, 0.58, ...
+    'FaceColor', 'flat', ...
+    'EdgeColor', 'none');
+hold on;
+
+for i = 1:numel(Y)
+    hb.CData(i,:) = colors(i,:);
+end
+
+errorbar(x, Y, ci95, ...
+    'k', ...
+    'LineStyle', 'none', ...
+    'LineWidth', 1.1, ...
+    'CapSize', 6, ...
+    'HandleVisibility', 'off');
+
+xticks(x);
+xticklabels(serial_sensitivity.labels);
+xtickangle(20);
+
+ylabel('Average effective spectral efficiency (bit/s/Hz)');
+title('');
+
+ymax = max(Y + ci95);
+ylim([0, 1.15 * ymax]);
+
+grid on;
+ax = gca;
+ax.XGrid = 'off';
+ax.YGrid = 'on';
+ax.GridAlpha = 0.18;
+ax.LineWidth = 1.0;
+ax.FontSize = 10;
+box on;
+
+hold off;
 end
 
 function final_bar_ab = run_final_bar_ab_cases(base_params, schemes, MC, user_pos_pools)
