@@ -19,7 +19,8 @@ do_speed       = false;
 do_convergence = false;
 do_cdf         = false;
 do_final_bar_ab = false;
-do_serial_sensitivity = true;
+do_serial_sensitivity = false;
+do_computational_effort = true;
 do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
@@ -236,6 +237,13 @@ if do_serial_sensitivity
     serial_sensitivity = run_serial_sensitivity_case(base_params, schemes, MC, user_pos_pools);
     draw_serial_sensitivity(serial_sensitivity, MC);
     compare_result.serial_sensitivity = serial_sensitivity;
+end
+
+if do_computational_effort
+    fprintf('\n================ Computational effort under default setup ================\n');
+    computational_effort = run_computational_effort_cases(base_params, schemes, MC, user_pos_pools);
+    compare_result.computational_effort = computational_effort;
+    print_computational_effort_table(computational_effort);
 end
 
 if do_H2_ab
@@ -662,6 +670,166 @@ for i = 1:2
 
     hold off;
 end
+end
+
+function computational_effort = run_computational_effort_cases(base_params, schemes, MC, user_pos_pools)
+
+ns = numel(schemes);
+
+runtime_all = zeros(MC, ns);
+iter_all = zeros(MC, ns);
+R_eff_all = zeros(MC, ns);
+R_sum_all = zeros(MC, ns);
+T_rec_all = zeros(MC, ns);
+time_factor_all = zeros(MC, ns);
+
+for idx_mc = 1:MC
+    user_pos_pool = user_pos_pools{idx_mc};
+    scene_case = build_scene_with_fixed_users(base_params, user_pos_pool);
+
+    for idx_scheme = 1:ns
+        init_seed_case = base_params.seed + 20000 + idx_mc;
+        alg_seed_case  = base_params.seed + 30000 + 100*idx_scheme + idx_mc;
+
+        fprintf('Computational effort: %s, MC %d/%d\n', ...
+            schemes(idx_scheme).name, idx_mc, MC);
+
+        t_start = tic;
+        out_case = run_one_case(base_params, ...
+            schemes(idx_scheme).init_mode, ...
+            schemes(idx_scheme).alg_mode, ...
+            init_seed_case, alg_seed_case, scene_case);
+        runtime_all(idx_mc, idx_scheme) = toc(t_start);
+
+        if isfield(out_case.history, 'R_eff') && ~isempty(out_case.history.R_eff)
+            iter_all(idx_mc, idx_scheme) = max(numel(out_case.history.R_eff) - 1, 0);
+        else
+            iter_all(idx_mc, idx_scheme) = NaN;
+        end
+
+        R_eff_all(idx_mc, idx_scheme) = out_case.final_R_eff;
+        R_sum_all(idx_mc, idx_scheme) = out_case.final_R_sum;
+        T_rec_all(idx_mc, idx_scheme) = out_case.final_detail.T_rec;
+        time_factor_all(idx_mc, idx_scheme) = out_case.final_detail.time_factor;
+    end
+end
+
+mean_runtime = mean(runtime_all, 1, 'omitnan');
+std_runtime  = std(runtime_all, 0, 1, 'omitnan');
+
+idx_ref = find(strcmp({schemes.name}, 'Fixed W+S'), 1);
+if isempty(idx_ref)
+    idx_ref = 2;   % Fixed PA-S baseline
+end
+
+runtime_ref_all = runtime_all(:, idx_ref);
+
+% More compatible than implicit expansion.
+normalized_runtime_all = bsxfun(@rdivide, runtime_all, runtime_ref_all);
+
+mean_normalized_runtime = mean(normalized_runtime_all, 1, 'omitnan');
+std_normalized_runtime  = std(normalized_runtime_all, 0, 1, 'omitnan');
+
+mean_iter = mean(iter_all, 1, 'omitnan');
+std_iter  = std(iter_all, 0, 1, 'omitnan');
+
+mean_R_eff = mean(R_eff_all, 1, 'omitnan');
+std_R_eff  = std(R_eff_all, 0, 1, 'omitnan');
+
+mean_R_sum = mean(R_sum_all, 1, 'omitnan');
+mean_T_rec = mean(T_rec_all, 1, 'omitnan');
+mean_time_factor = mean(time_factor_all, 1, 'omitnan');
+
+% Performance-complexity trade-off indicator.
+% A larger value means higher effective spectral efficiency per unit normalized runtime.
+efficiency_index = mean_R_eff ./ mean_normalized_runtime;
+
+computational_effort = struct();
+computational_effort.MC = MC;
+computational_effort.reference_scheme = schemes(idx_ref).name;
+
+computational_effort.runtime_all = runtime_all;
+computational_effort.normalized_runtime_all = normalized_runtime_all;
+computational_effort.iter_all = iter_all;
+computational_effort.R_eff_all = R_eff_all;
+computational_effort.R_sum_all = R_sum_all;
+computational_effort.T_rec_all = T_rec_all;
+computational_effort.time_factor_all = time_factor_all;
+
+computational_effort.mean_runtime = mean_runtime;
+computational_effort.std_runtime = std_runtime;
+computational_effort.mean_normalized_runtime = mean_normalized_runtime;
+computational_effort.std_normalized_runtime = std_normalized_runtime;
+
+computational_effort.mean_iter = mean_iter;
+computational_effort.std_iter = std_iter;
+
+computational_effort.mean_R_eff = mean_R_eff;
+computational_effort.std_R_eff = std_R_eff;
+
+computational_effort.mean_R_sum = mean_R_sum;
+computational_effort.mean_T_rec = mean_T_rec;
+computational_effort.mean_time_factor = mean_time_factor;
+computational_effort.efficiency_index = efficiency_index;
+
+scheme_names = string({schemes.name}).';
+
+computational_effort.table = table( ...
+    scheme_names, ...
+    mean_iter(:), ...
+    std_iter(:), ...
+    mean_runtime(:), ...
+    std_runtime(:), ...
+    mean_normalized_runtime(:), ...
+    std_normalized_runtime(:), ...
+    mean_R_eff(:), ...
+    std_R_eff(:), ...
+    mean_R_sum(:), ...
+    mean_T_rec(:), ...
+    mean_time_factor(:), ...
+    efficiency_index(:), ...
+    'VariableNames', { ...
+    'Scheme', ...
+    'AvgIterations', ...
+    'StdIterations', ...
+    'AvgRuntime_s', ...
+    'StdRuntime_s', ...
+    'AvgNormalizedRuntime', ...
+    'StdNormalizedRuntime', ...
+    'AvgReff', ...
+    'StdReff', ...
+    'AvgRsum', ...
+    'AvgTrec_s', ...
+    'AvgTimeFactor', ...
+    'EfficiencyIndex'});
+
+end
+
+function print_computational_effort_table(computational_effort)
+
+fprintf('\nReference scheme for normalized runtime: %s\n', ...
+    computational_effort.reference_scheme);
+fprintf('Number of default-parameter runs: %d\n\n', computational_effort.MC);
+
+disp(computational_effort.table);
+
+fprintf('\nLaTeX-ready values:\n');
+fprintf('%-24s %-12s %-12s %-12s %-12s\n', ...
+    'Scheme', 'Iter.', 'NormTime', 'Reff', 'EffIndex');
+
+for i = 1:height(computational_effort.table)
+    fprintf('%-24s %-12.2f %-12.2f %-12.2f %-12.2f\n', ...
+        char(computational_effort.table.Scheme(i)), ...
+        computational_effort.table.AvgIterations(i), ...
+        computational_effort.table.AvgNormalizedRuntime(i), ...
+        computational_effort.table.AvgReff(i), ...
+        computational_effort.table.EfficiencyIndex(i));
+end
+
+fprintf('\nSelected columns for manuscript table:\n');
+disp(computational_effort.table(:, ...
+    {'Scheme', 'AvgIterations', 'AvgReff', 'AvgNormalizedRuntime', 'EfficiencyIndex'}));
+
 end
 
 function H2_ab = draw_H2_ab_cases(base_params)
