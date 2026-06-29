@@ -16,11 +16,11 @@ do_M           = false;
 do_Dy          = false;
 do_Tf          = false;
 do_speed       = false;
-do_convergence = false;
+do_convergence = true;
 do_cdf         = false;
 do_final_bar_ab = false;
 do_serial_sensitivity = false;
-do_computational_effort = true;
+do_computational_effort = false;
 do_H2_ab = false;
 do_default_geometry = false;
 do_default_check = false;
@@ -1196,21 +1196,29 @@ hold off;
 end
 
 function conv_results = run_convergence_cases(base_params, schemes, MC, user_pos_pools)
+
 params_conv = base_params;
 params_conv.T_max = 30;
 params_conv.SA_max_iter = 5000;
 
 ns = numel(schemes);
+
 conv_results = struct('name',cell(ns,1), ...
                       'alg_mode',cell(ns,1), ...
                       'R_eff',cell(ns,1), ...
                       'R_eff_std',cell(ns,1), ...
                       'R_eff_all',cell(ns,1), ...
+                      'stop_iter_all',cell(ns,1), ...
+                      'mean_stop_iter',cell(ns,1), ...
+                      'std_stop_iter',cell(ns,1), ...
+                      'final_R_eff_all',cell(ns,1), ...
+                      'mean_final_R_eff',cell(ns,1), ...
                       'T_max',cell(ns,1), ...
                       'SA_max_iter',cell(ns,1), ...
                       'MC',cell(ns,1));
 
 for idx_scheme = 1:ns
+
     if strcmp(schemes(idx_scheme).alg_mode, 'sa_joint')
         target_len = params_conv.SA_max_iter + 1;
     else
@@ -1218,9 +1226,10 @@ for idx_scheme = 1:ns
     end
 
     R_eff_all = zeros(target_len, MC);
+    stop_iter_all = zeros(MC, 1);
+    final_R_eff_all = zeros(MC, 1);
 
     for idx_mc = 1:MC
-        % fprintf('Convergence: %s, MC %d/%d\n', schemes(idx_scheme).name, idx_mc, MC);
 
         user_pos_pool = user_pos_pools{idx_mc};
         scene_case = build_scene_with_fixed_users(params_conv, user_pos_pool);
@@ -1233,20 +1242,34 @@ for idx_scheme = 1:ns
             schemes(idx_scheme).alg_mode, ...
             init_seed_case, alg_seed_case, scene_case);
 
-        r = out.history.R_eff(:);
-        r = pad_convergence_curve(r, target_len);
-        R_eff_all(:,idx_mc) = r;
+        r_raw = out.history.R_eff(:);
+
+        stop_iter_all(idx_mc) = max(numel(r_raw) - 1, 0);
+        final_R_eff_all(idx_mc) = r_raw(end);
+
+        r_pad = pad_convergence_curve(r_raw, target_len);
+        R_eff_all(:, idx_mc) = r_pad;
     end
 
     conv_results(idx_scheme).name = schemes(idx_scheme).name;
     conv_results(idx_scheme).alg_mode = schemes(idx_scheme).alg_mode;
-    conv_results(idx_scheme).R_eff = mean(R_eff_all,2);
-    conv_results(idx_scheme).R_eff_std = std(R_eff_all,0,2);
+
+    conv_results(idx_scheme).R_eff = mean(R_eff_all, 2);
+    conv_results(idx_scheme).R_eff_std = std(R_eff_all, 0, 2);
     conv_results(idx_scheme).R_eff_all = R_eff_all;
+
+    conv_results(idx_scheme).stop_iter_all = stop_iter_all;
+    conv_results(idx_scheme).mean_stop_iter = mean(stop_iter_all, 'omitnan');
+    conv_results(idx_scheme).std_stop_iter = std(stop_iter_all, 0, 'omitnan');
+
+    conv_results(idx_scheme).final_R_eff_all = final_R_eff_all;
+    conv_results(idx_scheme).mean_final_R_eff = mean(final_R_eff_all, 'omitnan');
+
     conv_results(idx_scheme).T_max = params_conv.T_max;
     conv_results(idx_scheme).SA_max_iter = params_conv.SA_max_iter;
     conv_results(idx_scheme).MC = MC;
 end
+
 end
 
 function r_pad = pad_convergence_curve(r, target_len)
@@ -1328,32 +1351,136 @@ hold off;
 end
 
 function draw_convergence(conv_results, schemes)
-break_iter = 30; x_end_real = 5000; x_end_plot = 5000; x_break_plot = x_end_plot/3;
+
+break_iter = 20;
+x_end_real = 5000;
+x_end_plot = 5000;
+x_break_plot = x_end_plot / 3;
+
+colors = [
+    235, 134, 103;    % Proposed RA-AO
+    152, 127, 175;    % Fixed PA-S
+    134, 167, 208;    % Fixed PA-S + WMMSE
+    228, 184, 120;    % HG-SR
+    111, 165, 128     % SA joint search
+] / 255;
+
+markers = {'o', 's', '^', 'd', 'v'};
+
+display_names = {'Proposed RA-AO', ...
+                 'Fixed PA-S', ...
+                 'Fixed PA-S + WMMSE', ...
+                 'HG-SR', ...
+                 'SA joint search'};
+
 figure('Name','Fig5_Convergence_BrokenAxis','Position',[100 100 1100 560]);
-for s=1:numel(conv_results)
-    r = conv_results(s).R_eff(:);
-    if strcmp(conv_results(s).alg_mode,'SA_joint')
-        if numel(r) == conv_results(s).SA_max_iter + 1, x_real = (0:conv_results(s).SA_max_iter).';
-        elseif numel(r) == conv_results(s).SA_max_iter, x_real = (1:conv_results(s).SA_max_iter).';
-        else, x_real = round(linspace(0, conv_results(s).SA_max_iter, numel(r))).'; end
+
+hold on;
+y_all_plot = [];
+
+for s = 1:numel(conv_results)
+
+    r_mean = conv_results(s).R_eff(:);
+
+    if strcmp(conv_results(s).alg_mode, 'sa_joint')
+        x_real_full = (0:conv_results(s).SA_max_iter).';
+        stop_iter_plot = conv_results(s).SA_max_iter;
     else
-        x_real = (0:numel(r)-1).';
+        x_real_full = (0:conv_results(s).T_max).';
+
+        if isfield(conv_results(s), 'mean_stop_iter') && ~isempty(conv_results(s).mean_stop_iter)
+            stop_iter_plot = conv_results(s).mean_stop_iter;
+        else
+            stop_iter_plot = numel(r_mean) - 1;
+        end
     end
-    [r_best, idx_best] = max(r);
-    x_real_plot = [x_real(1:idx_best); x_end_real];
-    r_plot = [r(1:idx_best); r_best];
-    plot(compress_conv_x(x_real_plot, break_iter, x_break_plot, x_end_real, x_end_plot), r_plot, '-o', 'LineWidth', 1.6, 'MarkerSize', 6, 'MarkerFaceColor', 'none'); hold on;
+
+    stop_iter_plot = min(stop_iter_plot, x_real_full(end));
+    stop_iter_floor = floor(stop_iter_plot);
+
+    idx_keep = x_real_full <= stop_iter_floor;
+    x_real_plot = x_real_full(idx_keep);
+    r_plot = r_mean(idx_keep);
+
+    if isempty(x_real_plot)
+        x_real_plot = 0;
+        r_plot = r_mean(1);
+    end
+
+    if stop_iter_plot > stop_iter_floor && stop_iter_floor + 2 <= numel(r_mean)
+        x_real_plot = [x_real_plot; stop_iter_plot];
+
+        if isfield(conv_results(s), 'mean_final_R_eff') && ~isempty(conv_results(s).mean_final_R_eff)
+            r_plot = [r_plot; conv_results(s).mean_final_R_eff];
+        else
+            r_plot = [r_plot; r_mean(stop_iter_floor + 2)];
+        end
+    elseif abs(stop_iter_plot - stop_iter_floor) < 1e-9
+        if isfield(conv_results(s), 'mean_final_R_eff') && ~isempty(conv_results(s).mean_final_R_eff)
+            r_plot(end) = conv_results(s).mean_final_R_eff;
+        end
+    end
+
+    x_plot = compress_conv_x(x_real_plot, break_iter, x_break_plot, x_end_real, x_end_plot);
+
+    plot(x_plot, r_plot, ...
+        'LineStyle', '-', ...
+        'Marker', markers{s}, ...
+        'Color', colors(s,:), ...
+        'MarkerEdgeColor', colors(s,:), ...
+        'MarkerFaceColor', 'none', ...
+        'LineWidth', 1.8, ...
+        'MarkerSize', 6.5, ...
+        'DisplayName', display_names{s});
+
+    y_all_plot = [y_all_plot; r_plot(:)];
 end
-y_all = cell2mat(arrayfun(@(s) s.R_eff(:), conv_results, 'UniformOutput', false));
-r_min = min(y_all); r_max = max(y_all); pad = max(1e-6, 0.08*(r_max-r_min)); ylim([r_min-pad, r_max+pad]);
-yl = ylim; plot([x_break_plot x_break_plot], yl, 'k--', 'LineWidth', 1.2);
-text(x_break_plot + 80, yl(1) + 0.08*(yl(2)-yl(1)), 'x-axis compressed after 20 iterations', 'FontSize', 11);
-tick_real = [0 5 10 15 20 25 30 500 1000 1500 2000 2500 3000 3500 4000 4500 5000];
-xticks(compress_conv_x(tick_real, break_iter, x_break_plot, x_end_real, x_end_plot)); xticklabels(string(tick_real));
-legend({conv_results.name},'Location','northeastoutside','FontSize',9);
-xlabel('Iteration index'); ylabel('R_{eff} (bit/s/Hz)'); title('Convergence behavior of different schemes with compressed x-axis');
-grid on; box on; set(gca,'FontSize',10);
+
+if isempty(y_all_plot)
+    y_all_plot = 0;
 end
+
+r_min = min(y_all_plot);
+r_max = max(y_all_plot);
+pad = max(1e-6, 0.08 * (r_max - r_min));
+ylim([r_min - pad, r_max + pad]);
+
+yl = ylim;
+plot([x_break_plot x_break_plot], yl, ...
+    'k--', ...
+    'LineWidth', 1.2, ...
+    'HandleVisibility', 'off');
+
+text(x_break_plot + 80, ...
+    yl(1) + 0.08 * (yl(2) - yl(1)), ...
+    'x-axis compressed after 20 iterations', ...
+    'FontSize', 11);
+
+tick_real = [0 5 10 15 20 500 1000 1500 2000 2500 3000 3500 4000 4500 5000];
+
+xticks(compress_conv_x(tick_real, break_iter, x_break_plot, x_end_real, x_end_plot));
+xticklabels(string(tick_real));
+
+legend('show', ...
+    'Location', 'best', ...
+    'FontSize', 8);
+
+xlabel('Iteration index');
+ylabel('Average effective spectral efficiency (bit/s/Hz)');
+title('');
+
+grid on;
+box on;
+
+ax = gca;
+ax.FontSize = 10;
+ax.LineWidth = 1.0;
+ax.GridAlpha = 0.18;
+
+hold off;
+
+end
+
 function x_plot = compress_conv_x(x_real, break_iter, x_break_plot, x_end_real, x_end_plot)
 x_real = x_real(:); x_plot = zeros(size(x_real)); idx = x_real <= break_iter;
 x_plot(idx) = x_real(idx) / break_iter * x_break_plot;
