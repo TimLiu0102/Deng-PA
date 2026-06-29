@@ -6,7 +6,7 @@ if nargin < 2 || isempty(base_scene)
     base_scene = Channel_model('build_scene', base_params, [], [], []);
 end
 
-plot_mode = 'full';   % 'debug' 或 'full'
+plot_mode = 'debug';   % 'debug' 或 'full'
 % debug 模式只减少 MC，不减少横轴取值；如果调试 PSO 较慢，可手动关闭 do_N/do_Dy。
 
 do_snr         = false;
@@ -1423,6 +1423,7 @@ for s = 1:numel(conv_results)
 
     x_plot = compress_conv_x(x_real_plot, break_iter, x_break_plot, x_end_real, x_end_plot);
 
+    % 实际迭代过程：带 marker
     plot(x_plot, r_plot, ...
         'LineStyle', '-', ...
         'Marker', markers{s}, ...
@@ -1432,6 +1433,20 @@ for s = 1:numel(conv_results)
         'LineWidth', 1.8, ...
         'MarkerSize', 6.5, ...
         'DisplayName', display_names{s});
+
+    % 收敛后延伸段：同色实线，不带 marker，不进入图例
+    if x_real_plot(end) < x_end_real
+        x_extend_real = [x_real_plot(end); x_end_real];
+        x_extend_plot = compress_conv_x(x_extend_real, break_iter, x_break_plot, x_end_real, x_end_plot);
+        y_extend = [r_plot(end); r_plot(end)];
+
+        plot(x_extend_plot, y_extend, ...
+            'LineStyle', '-', ...
+            'Marker', 'none', ...
+            'Color', colors(s,:), ...
+            'LineWidth', 1.8, ...
+            'HandleVisibility', 'off');
+    end
 
     y_all_plot = [y_all_plot; r_plot(:)];
 end
