@@ -1198,8 +1198,18 @@ end
 function conv_results = run_convergence_cases(base_params, schemes, MC, user_pos_pools)
 
 params_conv = base_params;
-params_conv.T_max = 30;
-params_conv.SA_max_iter = 5000;
+
+% 收敛图不再单独放大外层迭代上限，而是与其他性能图保持一致。
+% 若主程序中 base_params.T_max = 10，则收敛图中 Proposed RA-AO 的最大外层迭代也是 10。
+if ~isfield(params_conv, 'T_max') || isempty(params_conv.T_max)
+    params_conv.T_max = 10;
+end
+
+% SA 的迭代上限也优先沿用 base_params 中的设置；
+% 如果 base_params 中没有 SA_max_iter，则保留默认 5000。
+if ~isfield(params_conv, 'SA_max_iter') || isempty(params_conv.SA_max_iter)
+    params_conv.SA_max_iter = 5000;
+end
 
 ns = numel(schemes);
 
